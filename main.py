@@ -282,20 +282,24 @@ def main():
                         pygame.quit()
                         return
 
-                    # Обработка клавиш переключения скорости
+                    # Обработка клавиш переключения скорости и паузы
                     if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_1:
+                        if event.key == pygame.K_SPACE:
+                            paused = not paused
+                        elif event.key == pygame.K_1:
                             current_speed = 60
                         elif event.key == pygame.K_2:
                             current_speed = 180
                         elif event.key == pygame.K_3:
                             current_speed = 360
-                        elif event.key == pygame.K_4 or event.key == pygame.K_SPACE:
+                        elif event.key == pygame.K_4:
                             current_speed = 0  # TURBO MAX
 
                     # Обработка панели управления
                     panel_result = control_panel.handle_event(event)
 
+                    if 'start' in panel_result:
+                        paused = False
                     if 'pause' in panel_result:
                         paused = not paused
                     if 'save' in panel_result:
