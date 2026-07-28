@@ -62,8 +62,15 @@ class Router:
             if len(state) in (16, 32, 64):
                 return "dialogue"
 
+            # 10-мерное состояние Двойного Анализа Биржи (График + Новости)
+            if len(state) == 10:
+                news_vola = float(state[9])
+                if news_vola > 0.3:
+                    return "high_volatility_news"
+                return "trading"
+
             # 8-мерное состояние Биржи / Трейдинга
-            if len(state) == 8:
+            if len(state) in (8, 9):
                 return "trading"
 
             # 7-мерное состояние игры Теннис

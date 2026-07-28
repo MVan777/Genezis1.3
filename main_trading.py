@@ -220,6 +220,16 @@ class TradingVisualizer:
             lbl = self.font_small.render(f"Strike: ${strike_p:.2f} ({'UP' if opt['direction'] == 1 else 'DOWN'}) | Экспирация через: {rem_steps}м", True, line_color)
             self.screen.blit(lbl, (x + 25, strike_y - 14))
 
+        # Отрисовка новостных маркеров на шкале времени (NEWS EVENTS)
+        if hasattr(self.env, 'news_calendar'):
+            for ev_step, ev_data in self.env.news_calendar.events.items():
+                if start_idx <= ev_step <= curr_step:
+                    idx_offset = ev_step - start_idx
+                    nx = float(x + 15 + idx_offset * step_w)
+                    pygame.draw.line(self.screen, self.YELLOW_RSI, (nx, y + 35), (nx, y + h - 20), 1)
+                    news_lbl = self.font_small.render("📰 NEWS", True, self.YELLOW_RSI)
+                    self.screen.blit(news_lbl, (nx - 18, y + 42))
+
         # Отрисовка маркеров сигналов входа ИИ (BUY / SELL)
         for sig_step, sig_price, sig_action in self.signals_history:
             if start_idx <= sig_step <= curr_step:
@@ -232,10 +242,13 @@ class TradingVisualizer:
                 elif sig_action == 2:  # SELL
                     pygame.draw.polygon(self.screen, self.RED_BEAR, [(sx, sy + 12.0), (sx - 6.0, sy), (sx + 6.0, sy)])
 
-        # Текущая цена
+        # Текущая цена и дата
         curr_price = float(self.env.prices[curr_step])
-        curr_txt = self.font_bold.render(f"Цена: ${curr_price:.2f}", True, self.TEXT_COLOR)
-        self.screen.blit(curr_txt, (x + w - 140, y + 10))
+        curr_date = self.last_info.get('current_date', '')
+        curr_txt = self.font_bold.render(f"BTC: ${curr_price:.2f}", True, self.TEXT_COLOR)
+        date_txt = self.font_small.render(curr_date, True, self.MUTED_TEXT)
+        self.screen.blit(curr_txt, (x + w - 150, y + 8))
+        self.screen.blit(date_txt, (x + w - 150, y + 25))
 
     def _draw_rsi_chart(self, x, y, w, h):
         """Отрисовка индикатора RSI (Осциллятор)"""
@@ -353,21 +366,40 @@ class TradingVisualizer:
 
         curr_y += 135
 
-        # 4. Карточка Состояния Мозга ИИ
+        # 4. Состояние Новостного Фона (Dual-Analysis News Sentiment)
+        news_info = self.last_info.get('news_info', {'active': False, 'headline': 'Фон нейтральный', 'sentiment': 0.0})
+        is_news_active = news_info.get('active', False)
+        news_title = news_info.get('headline', 'Нейтральный фон')
+        sent_val = news_info.get('sentiment', 0.0)
+        sent_str = "БЫЧИЙ (+)" if sent_val > 0.1 else ("МЕДВЕЖИЙ (-)" if sent_val < -0.1 else "НЕЙТРАЛЬНЫЙ")
+        sent_color = self.GREEN_BULL if sent_val > 0.1 else (self.RED_BEAR if sent_val < -0.1 else self.MUTED_TEXT)
+
+        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 95), border_radius=6)
+        lbl_news = self.font_small.render("ДВОЙНОЙ АНАЛИЗ (НОВОСТНОЙ ФОН):", True, self.YELLOW_RSI if is_news_active else self.MUTED_TEXT)
+        t_news = self.font_small.render(news_title[:35], True, self.TEXT_COLOR)
+        t_sent = self.font_bold.render(f"Сентимент: {sent_str}", True, sent_color)
+
+        self.screen.blit(lbl_news, (x + 25, curr_y + 8))
+        self.screen.blit(t_news, (x + 25, curr_y + 28))
+        self.screen.blit(t_sent, (x + 25, curr_y + 50))
+
+        curr_y += 110
+
+        # 5. Карточка Состояния Мозга ИИ
         total_n = sum(len(c.neurons) for c in self.brain.router.clusters)
         active_c = self.brain.active_cluster.domain if self.brain.active_cluster else "trading"
         lessons = self.brain.stats.get('lessons', 0)
 
-        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 120), border_radius=6)
+        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 110), border_radius=6)
         lbl_br = self.font_small.render("СОСТОЯНИЕ АССОЦИАТИВНОГО ИИ:", True, self.MUTED_TEXT)
         t_cl = self.font_main.render(f"Доменный кластер: '{active_c}'", True, self.BLUE_ACCENT)
         t_nr = self.font_main.render(f"Активных нейронов: {total_n}", True, self.TEXT_COLOR)
         t_ls = self.font_main.render(f"Уроков / Контрфактов: {lessons}", True, self.TEXT_COLOR)
 
-        self.screen.blit(lbl_br, (x + 25, curr_y + 10))
-        self.screen.blit(t_cl, (x + 25, curr_y + 32))
-        self.screen.blit(t_nr, (x + 25, curr_y + 54))
-        self.screen.blit(t_ls, (x + 25, curr_y + 78))
+        self.screen.blit(lbl_br, (x + 25, curr_y + 8))
+        self.screen.blit(t_cl, (x + 25, curr_y + 28))
+        self.screen.blit(t_nr, (x + 25, curr_y + 48))
+        self.screen.blit(t_ls, (x + 25, curr_y + 70))
 
 if __name__ == "__main__":
     vis = TradingVisualizer()

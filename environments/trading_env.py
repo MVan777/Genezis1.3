@@ -6,37 +6,27 @@
 
 import numpy as np
 import random
+import datetime
+from environments.data_loader import HistoricalDataLoader, NewsCalendar
 
 class TradingEnv:
-    """Биржевое окружение для обучения и бэктестинга Ассоциативного ИИ"""
+    """Биржевое окружение для обучения и бэктестинга Ассоциативного ИИ с двойным анализом"""
 
     def __init__(self, df_prices=None, initial_balance=1000.0, fee_pct=0.0005):
         self.initial_balance = initial_balance
         self.fee_pct = fee_pct  # 0.05% комиссия за сделку (стандарт Binance/Bybit)
 
+        self.loader = HistoricalDataLoader()
         if df_prices is not None and len(df_prices) > 50:
             self.prices = np.array(df_prices, dtype=np.float32)
+            self.dates = [datetime.datetime.now() for _ in range(len(self.prices))]
         else:
-            # Генерируем реалистичный синтетический график биржа/крипта (Geometric Brownian Motion + Тренд)
-            self.prices = self._generate_synthetic_market_data(steps=500)
+            # Загружаем реалистичные многолетние свечи BTC/USDT от $5k до $70k
+            self.dates, self.prices, self.volumes = self.loader.load_btc_multi_year_data(total_candles=1000)
 
+        # Подключаем макроэкономический новостной календарь с датами и временем
+        self.news_calendar = NewsCalendar(total_steps=len(self.prices))
         self.reset()
-
-    def _generate_synthetic_market_data(self, steps=500):
-        """Генерация синтетических свечей биржи с волнами Эллиотта, трендами и шумом"""
-        np.random.seed(42)
-        price = 100.0
-        prices = [price]
-        trend = 0.0005
-        
-        for t in range(steps):
-            cycle = 0.002 * np.sin(t / 15.0)
-            noise = np.random.normal(0, 0.012)
-            ret = trend + cycle + noise
-            price *= (1.0 + ret)
-            prices.append(price)
-
-        return np.array(prices, dtype=np.float32)
 
     def reset(self):
         """Сброс состояния торговли на начало графика"""
@@ -80,8 +70,8 @@ class TradingEnv:
 
     def _get_observation(self):
         """
-        Вектор состояния биржи R^8 для Ассоциативного ИИ:
-        [ret_1, ret_5, ret_15, rsi_norm, vola_norm, position, unrealized_pnl, expiry_norm]
+        Вектор состояния биржи R^10 Двойного Анализа для Ассоциативного ИИ:
+        [ret_1, ret_5, ret_15, rsi_norm, vola_norm, pos_norm, unrealized_pnl, expiry_norm, news_sentiment, news_vola]
         """
         curr_price = self.prices[self.current_step]
 
@@ -106,7 +96,16 @@ class TradingEnv:
 
         expiry_norm = float(self.selected_expiry_steps) / 60.0
 
-        obs = [ret_1 * 10.0, ret_5 * 5.0, ret_15 * 3.0, rsi_norm, vola_norm, pos_norm, unrealized_pnl * 5.0, expiry_norm]
+        # Данные новостного календаря по точной дате и времени
+        news_info = self.news_calendar.get_news_at_step(self.current_step)
+        news_sentiment = float(news_info['sentiment'])
+        news_vola_norm = float(news_info['volatility_impact']) / 3.5
+
+        obs = [
+            ret_1 * 10.0, ret_5 * 5.0, ret_15 * 3.0, rsi_norm, vola_norm,
+            pos_norm, unrealized_pnl * 5.0, expiry_norm,
+            news_sentiment, news_vola_norm
+        ]
         return np.array(obs, dtype=np.float32)
 
     def step(self, action):
@@ -187,6 +186,8 @@ class TradingEnv:
         self.pnl_history.append(self.balance)
         done = (self.current_step >= len(self.prices) - 2 or self.balance <= self.initial_balance * 0.3)
 
+        news_info = self.news_calendar.get_news_at_step(self.current_step)
+
         info = {
             'balance': self.balance,
             'position': self.position,
@@ -196,6 +197,8 @@ class TradingEnv:
             'selected_expiry': self.selected_expiry_steps,
             'active_options': self.active_options,
             'last_expired': last_expired_info,
+            'news_info': news_info,
+            'current_date': self.dates[self.current_step].strftime("%Y-%m-%d %H:%M") if hasattr(self, 'dates') and self.current_step < len(self.dates) else "",
             'event': trade_event
         }
 
