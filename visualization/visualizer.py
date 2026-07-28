@@ -23,7 +23,7 @@ class NeuronVisualizer:
             (100, 255, 255),  # голубой
         ]
 
-    def draw(self, agent, current_state=None, current_action=None, similar_neurons=None):
+    def draw(self, agent, current_state=None, current_action=None, similar_neurons=None, speed_label="1x"):
         """Отрисовка нейронов и связей между ними"""
         self.frame_counter += 1
 
@@ -152,16 +152,17 @@ class NeuronVisualizer:
                 total_connections += len(n_obj.next_associations)
 
         # Статистика
-        self._draw_stats(agent, router, active_cluster, current_action, total_connections)
+        self._draw_stats(agent, router, active_cluster, current_action, total_connections, speed_label)
 
-    def _draw_stats(self, agent, router, active_cluster, current_action, connection_count):
-        """Статистика на панели с макро-целями и эмоциями"""
+    def _draw_stats(self, agent, router, active_cluster, current_action, connection_count, speed_label="1x"):
+        """Статистика на панели с макро-целями, эмоциями и скоростью"""
         y_offset = 10
         goal_name = agent.goal_system.get_goal_name() if hasattr(agent, 'goal_system') else "исследование"
         emotions = agent.emotions if hasattr(agent, 'emotions') else {}
         top_emotion = max(emotions.items(), key=lambda x: x[1])[0] if emotions else "normal"
 
         texts = [
+            f"Скорость: {speed_label} [Keys: 1,2,3,4]",
             f"Кластеров: {len(router.clusters)}",
             f"Связей: {connection_count}",
             f"Домен: {active_cluster.domain if active_cluster else 'нет'}",

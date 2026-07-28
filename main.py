@@ -282,6 +282,17 @@ def main():
                         pygame.quit()
                         return
 
+                    # Обработка клавиш переключения скорости
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_1:
+                            current_speed = 60
+                        elif event.key == pygame.K_2:
+                            current_speed = 180
+                        elif event.key == pygame.K_3:
+                            current_speed = 360
+                        elif event.key == pygame.K_4 or event.key == pygame.K_SPACE:
+                            current_speed = 0  # TURBO MAX
+
                     # Обработка панели управления
                     panel_result = control_panel.handle_event(event)
 
@@ -316,7 +327,7 @@ def main():
                             game.add_enemy()
 
                 if paused:
-                    clock.tick(10)
+                    time.sleep(0.1)
                     continue
 
                 # Шаг игры
