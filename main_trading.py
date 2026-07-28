@@ -105,6 +105,14 @@ class TradingVisualizer:
                 elif event.key == pygame.K_r:
                     self.obs = self.env.reset()
                     self.signals_history = []
+                elif event.key == pygame.K_1:
+                    self.env.set_expiry_steps(5)
+                elif event.key == pygame.K_2:
+                    self.env.set_expiry_steps(15)
+                elif event.key == pygame.K_3:
+                    self.env.set_expiry_steps(30)
+                elif event.key == pygame.K_4:
+                    self.env.set_expiry_steps(60)
 
     def _update_step(self):
         """Выполнение одного шага торговли"""
@@ -153,10 +161,10 @@ class TradingVisualizer:
 
         status_str = "⏸️ ПАУЗА" if self.paused else f"⚡ СКОРОСТЬ: {self.speed} FPS"
         status = self.font_bold.render(status_str, True, self.YELLOW_RSI if self.paused else self.GREEN_BULL)
-        self.screen.blit(status, (450, 12))
+        self.screen.blit(status, (440, 12))
 
-        controls = self.font_small.render("[ПРОБЕЛ: Пауза | СТРЕЛКИ ВВЕРХ/ВНИЗ: Скорость | R: Сброс]", True, self.MUTED_TEXT)
-        self.screen.blit(controls, (self.width - 360, 15))
+        controls = self.font_small.render("[ПРОБЕЛ: Пауза | 1-4: Таймфрейм 5m-1h | R: Сброс]", True, self.MUTED_TEXT)
+        self.screen.blit(controls, (self.width - 340, 15))
 
     def _draw_price_chart(self, x, y, w, h):
         """Отрисовка главного свечного графика цен"""
@@ -196,6 +204,21 @@ class TradingVisualizer:
 
         if len(points) > 1:
             pygame.draw.lines(self.screen, self.BLUE_ACCENT, False, points, 2)
+
+        # Отрисовка активных опционов (Страйк цена и остаток времени)
+        active_opts = self.last_info.get('active_options', [])
+        for opt in active_opts:
+            strike_p = opt['strike_price']
+            rem_steps = opt['expiry_step'] - curr_step
+            strike_y = float(y + h - 20 - ((strike_p - min_p) / p_range) * (h - 60))
+            line_color = self.GREEN_BULL if opt['direction'] == 1 else self.RED_BEAR
+            
+            # Линия страйка
+            pygame.draw.line(self.screen, line_color, (x + 15, strike_y), (x + w - 15, strike_y), 1)
+            
+            # Текст с отсчетом времени
+            lbl = self.font_small.render(f"Strike: ${strike_p:.2f} ({'UP' if opt['direction'] == 1 else 'DOWN'}) | Экспирация через: {rem_steps}м", True, line_color)
+            self.screen.blit(lbl, (x + 25, strike_y - 14))
 
         # Отрисовка маркеров сигналов входа ИИ (BUY / SELL)
         for sig_step, sig_price, sig_action in self.signals_history:
@@ -286,39 +309,49 @@ class TradingVisualizer:
 
         curr_y += 95
 
-        # 2. Карточка Позиции
+        # 2. Карточка Позиции и Экспирации
         pos = self.last_info['position']
         pos_str = "FLAT (ВНЕ РЫНКА)" if pos == 0 else ("LONG (ПОКУПКА)" if pos == 1 else "SHORT (ПРОДАЖА)")
         pos_color = self.MUTED_TEXT if pos == 0 else (self.GREEN_BULL if pos == 1 else self.RED_BEAR)
+        exp_setting = self.last_info.get('selected_expiry', 15)
 
-        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 75), border_radius=6)
-        lbl_pos = self.font_small.render("АКТИВНАЯ ПОЗИЦИЯ:", True, self.MUTED_TEXT)
+        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 95), border_radius=6)
+        lbl_pos = self.font_small.render("АКТИВНАЯ ПОЗИЦИЯ & ТАЙМФРЕЙМ:", True, self.MUTED_TEXT)
         val_pos = self.font_bold.render(pos_str, True, pos_color)
         act_txt = self.font_small.render(f"Решение ИИ: {self.action_names[self.last_action]}", True, self.BLUE_ACCENT)
+        exp_txt = self.font_bold.render(f"Таймер прогноза: {exp_setting} мин (Клавиши 1-4)", True, self.YELLOW_RSI)
 
-        self.screen.blit(lbl_pos, (x + 25, curr_y + 10))
-        self.screen.blit(val_pos, (x + 25, curr_y + 28))
-        self.screen.blit(act_txt, (x + 25, curr_y + 50))
+        self.screen.blit(lbl_pos, (x + 25, curr_y + 8))
+        self.screen.blit(val_pos, (x + 25, curr_y + 26))
+        self.screen.blit(act_txt, (x + 25, curr_y + 48))
+        self.screen.blit(exp_txt, (x + 25, curr_y + 68))
 
-        curr_y += 90
+        curr_y += 110
 
-        # 3. Карточка Статистики Сделок
+        # 3. Карточка Статистики Сделок и Исходов
         trades = self.last_info['total_trades']
         wins = self.last_info['winning_trades']
         win_rate = self.last_info['win_rate']
+        last_exp = self.last_info.get('last_expired')
 
-        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 110), border_radius=6)
-        lbl_st = self.font_small.render("СТАТИСТИКА СДЕЛОК:", True, self.MUTED_TEXT)
-        t_tr = self.font_main.render(f"Всего сделок: {trades}", True, self.TEXT_COLOR)
-        t_win = self.font_main.render(f"Прибыльных: {wins} / Убыточных: {trades - wins}", True, self.TEXT_COLOR)
+        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 120), border_radius=6)
+        lbl_st = self.font_small.render("СТАТИСТИКА ПРОГНОЗОВ С ЭКСПИРАЦИЕЙ:", True, self.MUTED_TEXT)
+        t_tr = self.font_main.render(f"Всего закрытых опционов: {trades}", True, self.TEXT_COLOR)
+        t_win = self.font_main.render(f"Точных: {wins} / Неточных: {trades - wins}", True, self.TEXT_COLOR)
         t_wr = self.font_bold.render(f"Точность (Win Rate): {win_rate:.1f}%", True, self.GREEN_BULL if win_rate >= 50 else self.YELLOW_RSI)
 
-        self.screen.blit(lbl_st, (x + 25, curr_y + 10))
-        self.screen.blit(t_tr, (x + 25, curr_y + 32))
-        self.screen.blit(t_win, (x + 25, curr_y + 54))
-        self.screen.blit(t_wr, (x + 25, curr_y + 80))
+        if last_exp:
+            res_str = f"Последний прогноз: {last_exp['result']} ({last_exp['profit']:+.2f}$)"
+            res_color = self.GREEN_BULL if last_exp['result'] == 'WIN' else self.RED_BEAR
+            t_last = self.font_small.render(res_str, True, res_color)
+            self.screen.blit(t_last, (x + 25, curr_y + 96))
 
-        curr_y += 125
+        self.screen.blit(lbl_st, (x + 25, curr_y + 8))
+        self.screen.blit(t_tr, (x + 25, curr_y + 28))
+        self.screen.blit(t_win, (x + 25, curr_y + 48))
+        self.screen.blit(t_wr, (x + 25, curr_y + 70))
+
+        curr_y += 135
 
         # 4. Карточка Состояния Мозга ИИ
         total_n = sum(len(c.neurons) for c in self.brain.router.clusters)
