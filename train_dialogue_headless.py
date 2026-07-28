@@ -56,11 +56,13 @@ def run_headless_dialogue_training(rounds=100):
         next_obs, reward, done, info = env.step(action)
         brain.learn(reward, next_obs, done)
 
-        # Если ответ верный — сразу укрепляем созданный нейрон
+        # Если ответ верный — сразу укрепляем созданный нейрон как Золотой Прототип
         if info['is_correct'] and brain.last_neuron:
-            brain.last_neuron.strength = 2.5
-            brain.last_neuron.usage_count = 5
+            brain.last_neuron.strength = 5.0
+            brain.last_neuron.usage_count = 10
             brain.last_neuron.flag = 1.0
+            if hasattr(brain.last_neuron, 'confidence'):
+                brain.last_neuron.confidence = 1.0
 
         brain.reset_episode()
 

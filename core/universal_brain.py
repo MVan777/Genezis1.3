@@ -119,10 +119,12 @@ class UniversalAssociativeBrain:
         self.last_similar_neurons = similar
         best_action, confidence = self._vote(similar)
 
-        if best_action is not None and confidence > 0.1:
+        if best_action is not None and (confidence > 0.05 or not explore):
             action = best_action
         elif explore:
             action = random.randint(0, self.action_count - 1)
+        elif best_action is not None:
+            action = best_action
         else:
             action = 0
 

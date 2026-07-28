@@ -44,15 +44,26 @@ class Router:
         self.add_cluster(cluster)
         return cluster
 
-    def classify_world(self, state):
+    def classify_world(self, state, domain=None):
         """
-        Динамически определить контекстный домен (emergency, combat, exploration) по состоянию
+        Динамически определить контекстный домен (dialogue, tennis, emergency, combat, exploration) по состоянию
         """
-        if isinstance(state, dict) and 'world_type' in state:
-            return state['world_type']
+        if domain:
+            return domain
+
+        if isinstance(state, dict):
+            if 'domain' in state:
+                return state['domain']
+            if 'world_type' in state:
+                return state['world_type']
 
         if isinstance(state, (list, np.ndarray, tuple)):
-            if len(state) > 0:
+            # 16-мерный вектор текстовой среды диалога
+            if len(state) == 16:
+                return "dialogue"
+
+            # 5-мерное состояние игры Выживание
+            if len(state) == 5:
                 health_norm = float(state[0])
                 enemy_near = float(state[3]) if len(state) > 3 else 0.0
                 weapon_status = float(state[4]) if len(state) > 4 else 0.0
@@ -66,11 +77,11 @@ class Router:
 
         return "exploration"
 
-    def select_cluster(self, state, create_if_missing=True):
+    def select_cluster(self, state, domain=None, create_if_missing=True):
         """
         Выбрать подходящий кластер для текущего состояния
         """
-        world_type = self.classify_world(state)
+        world_type = self.classify_world(state, domain=domain)
 
         candidates = self.domain_index.get(world_type, [])
 

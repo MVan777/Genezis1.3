@@ -107,9 +107,9 @@ class MemoryCluster:
 
             results = []
             for i, (sim, neuron) in enumerate(zip(sims, self.neurons)):
-                age_factor = max(0.5, 1.0 - (curr_time - neuron.last_used) / 10000)
-                final_sim = float(sim * neuron.strength * age_factor)
-                if final_sim > threshold:
+                if sim > threshold:
+                    age_factor = max(0.5, 1.0 - (curr_time - neuron.last_used) / 10000)
+                    final_sim = float(sim * neuron.strength * age_factor)
                     results.append((i, final_sim, neuron))
             results.sort(key=lambda x: x[1], reverse=True)
             return results[:max_results]
@@ -130,9 +130,9 @@ class MemoryCluster:
             else:
                 sim = float(np.dot(sit_trim, neu_trim) / (sn * nn))
 
-            age_factor = max(0.5, 1.0 - (curr_time - neuron.last_used) / 10000)
-            final_sim = sim * neuron.strength * age_factor
-            if final_sim > threshold:
+            if sim > threshold:
+                age_factor = max(0.5, 1.0 - (curr_time - neuron.last_used) / 10000)
+                final_sim = sim * neuron.strength * age_factor
                 similarities.append((i, final_sim, neuron))
 
         similarities.sort(key=lambda x: x[1], reverse=True)
