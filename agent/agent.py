@@ -15,11 +15,13 @@ from core.router import Router
 from core.cluster import MemoryCluster
 from core.neuron import Neuron
 from core.neurons import ShortTermNeuron, LongTermNeuron
-from config import ACTION_COUNT, CONFIDENCE_THRESHOLD, ENEMY_KILL_REWARD  # ← ДОБАВЛЕНО
+from core.goal_system import MacroGoalSystem
+from core.spatial_memory import SpatialMentalMap
+from config import ACTION_COUNT, CONFIDENCE_THRESHOLD, ENEMY_KILL_REWARD
 from game.game import Game
 
 class Agent:
-    """Агент с ассоциативной памятью и самоанализом"""
+    """Агент с ассоциативной памятью, макро-целями и эмоциональным самоанализом"""
 
     def __init__(self, router=None):
         self.router = router if router else Router()
@@ -29,6 +31,12 @@ class Agent:
         self.last_neuron = None
         self.last_similar_neurons = []
         self.used_clusters = set()
+
+        # Иерархические системы Фазы 3
+        self.goal_system = MacroGoalSystem()
+        self.spatial_map = SpatialMentalMap()
+        self.emotions = {'fear': 0.0, 'aggression': 0.0, 'curiosity': 0.0, 'calm': 0.0}
+        self.current_goal = 0
 
         self.stats = {
             'games': 0,
@@ -65,7 +73,20 @@ class Agent:
         return None
 
     def act(self, state, explore=True):
-        """Выбрать действие"""
+        """Выбрать действие с учетом эмоций и макро-целей"""
+        health_norm = float(state[0]) if len(state) > 0 else 1.0
+        enemy_near = float(state[3]) if len(state) > 3 else 0.0
+        weapon_status = float(state[4]) if len(state) > 4 else 0.0
+
+        # Модуляция эмоциональных состояний
+        self.emotions['fear'] = max(0.0, 1.0 - health_norm)
+        self.emotions['aggression'] = weapon_status * (1.0 if enemy_near > 0 else 0.2)
+        self.emotions['curiosity'] = float(state[2]) if len(state) > 2 else 0.0
+        self.emotions['calm'] = float(state[5]) if len(state) > 5 else 0.0
+
+        # Определение текущей макро-цели
+        self.current_goal = self.goal_system.select_goal(state)
+
         self.active_cluster = self.router.select_cluster(state)
         self.used_clusters.add(self.active_cluster.id)
 
@@ -87,6 +108,7 @@ class Agent:
             'action_taken': action,
             'confidence': confidence,
             'similar_count': len(similar),
+            'goal': self.current_goal,
             'timestamp': time.time()
         })
 
@@ -116,29 +138,40 @@ class Agent:
         return results
 
     def _vote(self, similar_neurons):
-        """Взвешенное голосование с учётом предвосхищения (Lookahead)"""
+        """Взвешенное голосование с многошаговым предвосхищением и эмоциональной модуляцией"""
         if not similar_neurons:
             return None, 0
 
         action_votes = defaultdict(float)
 
+        fear_mod = 1.0 + self.emotions.get('fear', 0.0)
+        aggression_mod = 1.0 + self.emotions.get('aggression', 0.0)
+
         for neuron, sim, cluster_weight in similar_neurons:
-            # Отмечаем использование (для краткосрочных)
             if hasattr(neuron, 'access'):
                 neuron.access()
 
-            # Долгосрочные нейроны имеют больший вес
             type_weight = 1.5 if hasattr(neuron, 'confidence') else 1.0
 
-            # Ассоциативное Предвосхищение (1-step Lookahead по следующему шагу)
+            # 2-step Spreading Activation Lookahead
             lookahead_bonus = 0.0
             if hasattr(neuron, 'next_associations') and neuron.next_associations:
                 for next_id, w_next in neuron.next_associations.items():
                     next_n = self._find_neuron_by_id(next_id)
                     if next_n:
                         lookahead_bonus += 0.3 * w_next * next_n.flag * next_n.strength
+                        if hasattr(next_n, 'next_associations') and next_n.next_associations:
+                            for next2_id, w_next2 in next_n.next_associations.items():
+                                next2_n = self._find_neuron_by_id(next2_id)
+                                if next2_n:
+                                    lookahead_bonus += 0.15 * w_next * w_next2 * next2_n.flag * next2_n.strength
 
-            effective_flag = neuron.flag + lookahead_bonus
+            raw_flag = neuron.flag + lookahead_bonus
+            if raw_flag < 0:
+                effective_flag = raw_flag * fear_mod
+            else:
+                effective_flag = raw_flag * aggression_mod
+
             vote = sim * cluster_weight * effective_flag * neuron.strength * type_weight
             action_votes[neuron.action] += vote
 
@@ -274,11 +307,26 @@ class Agent:
             self.death_situations.append(death_moment)
 
     def _decay_after_death(self):
-        """Ослабление после смерти"""
+        """Ослабление после смерти и 5-шаговое распределение негативного кредита"""
         for cluster_id in self.used_clusters:
             cluster = self._get_cluster_by_id(cluster_id)
             if cluster:
                 cluster.decay(factor=0.95)
+
+        # 5-шаговое распределение негативного кредита доверия к цепочке ошибок
+        if self.game_history and len(self.game_history) > 1:
+            steps_back = min(5, len(self.game_history))
+            discount = 1.0
+            for k in range(1, steps_back + 1):
+                moment = self.game_history[-k]
+                state_k = moment.get('state')
+                if state_k is not None and self.active_cluster:
+                    similar = self.active_cluster.find_similar(state_k, threshold=0.6, max_results=3)
+                    for idx, sim, n in similar:
+                        if n.action == moment.get('action_taken'):
+                            n.flag = max(-1.0, n.flag - 0.2 * discount)
+                            n.strength *= (1.0 - 0.1 * discount)
+                discount *= 0.7
 
         # Усиливаем связи между использованными кластерами
         used_list = list(self.used_clusters)

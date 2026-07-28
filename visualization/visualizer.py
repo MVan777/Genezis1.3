@@ -72,24 +72,41 @@ class NeuronVisualizer:
                 all_neurons.append(neuron_data)
                 neuron_map[neuron.id] = neuron_data
 
-        # ===== РИСУЕМ СВЯЗИ МЕЖДУ НЕЙРОНАМИ =====
-        # Собираем все связи из всех кластеров
-        connections = []
+        # ===== РИСУЕМ ВРЕМЕННЫЕ ПОСЛЕДОВАТЕЛЬНЫЕ СВЯЗИ (N_{t-1} -> N_t) =====
+        for n1_id, n1_data in neuron_map.items():
+            n1 = n1_data['neuron']
+            if hasattr(n1, 'next_associations') and n1.next_associations:
+                for n2_id, weight in n1.next_associations.items():
+                    if n2_id in neuron_map and weight > 0.1:
+                        n2_data = neuron_map[n2_id]
+                        # Бирюзовые линии для временных связей
+                        line_color = (0, 200, 220)
+                        width = max(1, int(weight * 3))
+                        pygame.draw.line(
+                            self.screen, line_color,
+                            (n1_data['screen_x'], n1_data['screen_y']),
+                            (n2_data['screen_x'], n2_data['screen_y']),
+                            width
+                        )
+                        # Точка в направлении назначения
+                        mid_x = int(0.7 * n2_data['screen_x'] + 0.3 * n1_data['screen_x'])
+                        mid_y = int(0.7 * n2_data['screen_y'] + 0.3 * n1_data['screen_y'])
+                        pygame.draw.circle(self.screen, (0, 255, 255), (mid_x, mid_y), 2)
 
+        # ===== РИСУЕМ СВЯЗИ СХОДСТВА МЕЖДУ НЕЙРОНАМИ =====
+        connections = []
         for cluster in router.clusters:
             if hasattr(cluster, 'connection_matrix'):
                 for (id1, id2), strength in cluster.connection_matrix.items():
                     if strength > 0.1 and id1 in neuron_map and id2 in neuron_map:
                         connections.append((id1, id2, strength))
 
-        # Сортируем по силе и рисуем
         connections.sort(key=lambda x: x[2], reverse=True)
 
         for id1, id2, strength in connections[:500]:  # максимум 500 связей
             n1 = neuron_map[id1]
             n2 = neuron_map[id2]
 
-            # Цвет от серого до белого в зависимости от силы
             color_val = min(200, int(150 + strength * 100))
             color = (color_val, color_val, color_val)
             width = max(1, int(strength * 2))
@@ -102,7 +119,6 @@ class NeuronVisualizer:
             )
 
         # ===== РИСУЕМ НЕЙРОНЫ =====
-        # Определяем, какие нейроны похожи на текущую ситуацию
         similar_ids = []
         if similar_neurons:
             similar_ids = [n[0].id if len(n) > 0 else None for n in similar_neurons if n]
@@ -112,8 +128,11 @@ class NeuronVisualizer:
             screen_x = neuron_data['screen_x']
             screen_y = neuron_data['screen_y']
 
-            # Размер зависит от силы нейрона
             size = 3 + int(neuron.strength * 8)
+
+            # Обводка золотом для прототипов / долгосрочных нейронов
+            if getattr(neuron, 'confidence', 0) > 0.5 or neuron.usage_count > 5:
+                pygame.draw.circle(self.screen, (255, 215, 0), (screen_x, screen_y), size + 4, 1)
 
             # Обводка белым для активных нейронов
             if neuron.id in similar_ids:
@@ -126,23 +145,29 @@ class NeuronVisualizer:
             pygame.draw.circle(self.screen, ACTION_COLORS[neuron.action], (screen_x, screen_y), size, 2)
 
         # Статистика
-        self._draw_stats(router, active_cluster, current_action, len(connections))
+        self._draw_stats(agent, router, active_cluster, current_action, len(connections))
 
-    def _draw_stats(self, router, active_cluster, current_action, connection_count):
-        """Статистика на панели"""
+    def _draw_stats(self, agent, router, active_cluster, current_action, connection_count):
+        """Статистика на панели с макро-целями и эмоциями"""
         y_offset = 10
+        goal_name = agent.goal_system.get_goal_name() if hasattr(agent, 'goal_system') else "исследование"
+        emotions = agent.emotions if hasattr(agent, 'emotions') else {}
+        top_emotion = max(emotions.items(), key=lambda x: x[1])[0] if emotions else "normal"
+
         texts = [
             f"Кластеров: {len(router.clusters)}",
             f"Связей: {connection_count}",
-            f"Активный: {active_cluster.domain if active_cluster else 'нет'}",
+            f"Домен: {active_cluster.domain if active_cluster else 'нет'}",
             f"Нейронов: {sum(len(c.neurons) for c in router.clusters)}",
+            f"Цель: {goal_name}",
+            f"Эмоция: {top_emotion}"
         ]
 
         for i, text in enumerate(texts):
             text_surface = self.font.render(text, True, COLORS['text'])
-            self.screen.blit(text_surface, (NEURON_VIS_X + 10, y_offset + i * 25))
+            self.screen.blit(text_surface, (NEURON_VIS_X + 10, y_offset + i * 22))
 
         if current_action is not None:
             action_text = f"Действие: {ACTIONS[current_action]}"
             text_surface = self.font.render(action_text, True, ACTION_COLORS[current_action])
-            self.screen.blit(text_surface, (NEURON_VIS_X + 10, y_offset + 150))
+            self.screen.blit(text_surface, (NEURON_VIS_X + 10, y_offset + 160))
