@@ -10,7 +10,7 @@ import numpy as np
 class SystemDualProcessEngine:
     """Двухпроцессный роутер мышления ИИ (System 1 vs System 2)"""
 
-    def __init__(self, confidence_threshold=0.25, deep_reflection_depth=10):
+    def __init__(self, confidence_threshold=0.20, deep_reflection_depth=4):
         self.confidence_threshold = confidence_threshold
         self.deep_reflection_depth = deep_reflection_depth
         self.stats = {'system1_fast_hits': 0, 'system2_deep_reflections': 0}
@@ -19,21 +19,27 @@ class SystemDualProcessEngine:
         """
         Принимает решение по ветви System 1 или System 2
         """
-        # Если уверенность выше порога - включается Быстрая System 1 (<1 мс)
-        if confidence >= self.confidence_threshold:
+        # Если нет похожих нейронов или уверенность выше порога -> Быстрая System 1 (<1 мс)
+        if not similar_neurons or confidence >= self.confidence_threshold:
             self.stats['system1_fast_hits'] += 1
             return 'system1', confidence, None
 
-        # Иначе включается System 2: Глубокое размышление с 10-шаговым волновым моделированием
+        # Фильтруем кандидатов для глубокого размышления
+        candidates = [n for n, sim, w in similar_neurons if getattr(n, 'flag', 0.0) > 0.1]
+        if not candidates:
+            self.stats['system1_fast_hits'] += 1
+            return 'system1', confidence, None
+
+        # Иначе включается System 2: Глубокое размышление (топ кандидаты)
         self.stats['system2_deep_reflections'] += 1
 
         deep_scores = {}
-        for neuron, sim, weight in similar_neurons:
+        for neuron in candidates[:3]:
             action = neuron.action
             deep_score = self._deep_wave_propagation(neuron, brain_ref, depth=1, max_depth=self.deep_reflection_depth)
             if action not in deep_scores:
                 deep_scores[action] = 0.0
-            deep_scores[action] += deep_score * sim * weight
+            deep_scores[action] += deep_score
 
         if deep_scores:
             best_action = max(deep_scores.items(), key=lambda x: x[1])[0]
@@ -42,17 +48,21 @@ class SystemDualProcessEngine:
 
         return 'system1', confidence, None
 
-    def _deep_wave_propagation(self, start_neuron, brain_ref, depth=1, max_depth=10):
-        """Рекурсивный волновой разбор графа памяти до max_depth"""
+    def _deep_wave_propagation(self, start_neuron, brain_ref, depth=1, max_depth=4):
+        """Быстрый рекурсивный волновой разбор графа памяти"""
         if depth >= max_depth or not hasattr(start_neuron, 'next_associations') or not start_neuron.next_associations:
             return start_neuron.flag * start_neuron.strength
 
         score = start_neuron.flag * start_neuron.strength
         decay = 0.8 ** depth
 
+        count = 0
         for next_id, edge_w in start_neuron.next_associations.items():
+            if count >= 3:
+                break
             next_n = brain_ref._find_neuron_by_id(next_id)
             if next_n:
                 score += decay * edge_w * self._deep_wave_propagation(next_n, brain_ref, depth + 1, max_depth)
+                count += 1
 
         return score
