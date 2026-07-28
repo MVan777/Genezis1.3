@@ -130,10 +130,14 @@ class TradingVisualizer:
                     self.env.change_symbol("SOL/USDT")
                     self.signals_history = []
                     self.obs = self.env._get_observation()
-                elif event.key == pygame.K_x:
-                    self.env.change_symbol("EUR/USD")
-                    self.signals_history = []
-                    self.obs = self.env._get_observation()
+                elif event.key == pygame.K_F1:
+                    self.speed = 1
+                elif event.key == pygame.K_F2:
+                    self.speed = 2
+                elif event.key == pygame.K_F3:
+                    self.speed = 10
+                elif event.key == pygame.K_F4:
+                    self.speed = 100
 
     def _update_step(self):
         """Выполнение одного шага торговли"""
@@ -187,19 +191,23 @@ class TradingVisualizer:
         mode_str = "[LIVE BINANCE]" if mode == "live" else "[SIMULATION]"
         mode_color = self.GREEN_BULL if mode == "live" else self.BLUE_ACCENT
 
-        title = self.font_title.render(f"📈 GENEZIS 2.0 TRADING AI {mode_str} [{sym}]", True, mode_color)
+        speed_lbl = f"{self.speed}x" if self.speed > 1 else "1x REAL-TIME"
+        if self.speed >= 100:
+            speed_lbl = "100x TURBO"
+
+        title = self.font_title.render(f"📈 GENEZIS 2.0 {mode_str} [{sym}] | ⚡ {speed_lbl}", True, mode_color)
         self.screen.blit(title, (20, 10))
 
-        controls = self.font_small.render("[M: Режим SIM/LIVE | B,E,S,X: Пары | 1-4: Экспирация | ПРОБЕЛ: Пауза]", True, self.MUTED_TEXT)
-        self.screen.blit(controls, (self.width - 430, 15))
+        controls = self.font_small.render("[F1-F4: Скорость 1x-100x | M: SIM/LIVE | B,E,S,X: Пары | 1-4: Экспирация]", True, self.MUTED_TEXT)
+        self.screen.blit(controls, (self.width - 450, 15))
 
     def _draw_price_chart(self, x, y, w, h):
-        """Отрисовка главного свечного графика цен"""
+        """Отрисовка главного свечного графика цен с детальной информацией о сделках"""
         panel_rect = pygame.Rect(x, y, w, h)
         pygame.draw.rect(self.screen, self.PANEL_BG, panel_rect, border_radius=6)
         pygame.draw.rect(self.screen, self.PANEL_BORDER, panel_rect, width=1, border_radius=6)
 
-        title = self.font_bold.render("ГРАФИК ЦЕНЫ И СИГНАЛЫ ИИ (PRICE & SIGNALS)", True, self.TEXT_COLOR)
+        title = self.font_bold.render("ГРАФИК СВЕЧЕЙ И ОРДЕРОВ ИИ (CANDLES & ORDERS)", True, self.TEXT_COLOR)
         self.screen.blit(title, (x + 15, y + 10))
 
         # Берем окно последних 60 баров
@@ -240,14 +248,35 @@ class TradingVisualizer:
             is_bull = (cl_p >= o_p)
             c_color = self.GREEN_BULL if is_bull else self.RED_BEAR
 
-            # 1. Тень свечи (Wick / Shadow from High to Low)
+            # 1. Тень свечи
             pygame.draw.line(self.screen, c_color, (cx, hy), (cx, ly), 1)
 
-            # 2. Тело свечи (Body Rect from Open to Close)
+            # 2. Тело свечи
             top_y = min(oy, cy)
             body_h = max(2.0, abs(cy - oy))
             body_rect = pygame.Rect(cx - candle_w / 2.0, top_y, candle_w, body_h)
             pygame.draw.rect(self.screen, c_color, body_rect)
+
+        # Отрисовка завершенных опционов (Где открыл, где закрылось, плашка WIN / LOSS)
+        comp_opts = getattr(self.env, 'completed_options', [])
+        for opt in comp_opts[-10:]:
+            ex_step = opt.get('exit_step', 0)
+            st_step = opt.get('entry_step', 0)
+            if start_idx <= ex_step <= curr_step or start_idx <= st_step <= curr_step:
+                ex_offset = min(window_size, max(0, ex_step - start_idx))
+                ex_x = float(x + 15 + ex_offset * step_w)
+                ex_price = opt.get('exit_price', opt['strike_price'])
+                ex_y = float(y + h - 20 - ((ex_price - min_p) / p_range) * (h - 60))
+                
+                res = opt.get('result', 'WIN')
+                res_bg = self.GREEN_BULL if res == 'WIN' else self.RED_BEAR
+                res_text = f"🏆 WIN +${opt.get('profit', 8.5):.2f}" if res == 'WIN' else f"❌ LOSS -${opt['amount']:.2f}"
+
+                # Рисуем плашку исхода у свечи закрытия
+                badge_lbl = self.font_bold.render(res_text, True, (255, 255, 255))
+                badge_rect = pygame.Rect(ex_x - 45, ex_y - 18, 90, 16)
+                pygame.draw.rect(self.screen, res_bg, badge_rect, border_radius=4)
+                self.screen.blit(badge_lbl, (ex_x - 40, ex_y - 18))
 
         # Отрисовка активных опционов (Страйк цена и остаток времени)
         active_opts = self.last_info.get('active_options', [])
@@ -257,10 +286,7 @@ class TradingVisualizer:
             strike_y = float(y + h - 20 - ((strike_p - min_p) / p_range) * (h - 60))
             line_color = self.GREEN_BULL if opt['direction'] == 1 else self.RED_BEAR
             
-            # Линия страйка
             pygame.draw.line(self.screen, line_color, (x + 15, strike_y), (x + w - 15, strike_y), 1)
-            
-            # Текст с отсчетом времени
             lbl = self.font_small.render(f"Strike: ${strike_p:.2f} ({'UP' if opt['direction'] == 1 else 'DOWN'}) | Экспирация через: {rem_steps}м", True, line_color)
             self.screen.blit(lbl, (x + 25, strike_y - 14))
 
