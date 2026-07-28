@@ -36,14 +36,18 @@ class TradingEnv:
         self.reset()
 
     def set_mode(self, mode_name):
-        """Переключить режим работы: 'sim' (Обучение/Бэктест) или 'live' (Живой рынок Binance)"""
+        """Переключить режим работы: 'sim' (Обучение/Бэктест с 01.01.2021) или 'live' (Живой рынок Binance)"""
         if mode_name in ("sim", "live"):
             self.mode = mode_name
             if self.mode == "live":
                 ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=100)
                 if lprices and len(lprices) > 30:
                     self.dates, self.prices, self.ohlcv = ldates, np.array(lprices, dtype=np.float32), lohlcv
-            self.reset()
+            else:
+                # В режиме SIM всегда подгружаем сплошную историю от 01.01.2021
+                self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=self.active_symbol)
+
+            self.reset(preserve_step=(self.mode == "sim"))
             return True
         return False
 
