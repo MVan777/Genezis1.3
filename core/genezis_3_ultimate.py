@@ -17,9 +17,12 @@ from core.mental_simulator import DeepMentalGraphSimulator
 from core.meta_adapter import MetaLearningAdapter
 from core.cross_transfer import CrossDomainTransfer
 from core.abstraction_hierarchy import AbstractionHierarchy
+from core.system_dual_process import SystemDualProcessEngine
+from core.intuitive_salience import IntuitiveSalienceEngine
+from core.semantic_concepts import SemanticConceptNetwork
 
 class Genezis3UltimateEngine:
-    """Максимальный Универсальный Ассоциативный Движок ИИ Genezis 3.0"""
+    """Максимальный Универсальный Ассоциативный Движок ИИ Genezis 3.0 Hyper-Brain"""
 
     def __init__(self, action_count=5, router=None):
         self.action_count = action_count
@@ -28,12 +31,17 @@ class Genezis3UltimateEngine:
         self.goal_system = MacroGoalSystem()
         self.spatial_map = SpatialMentalMap()
 
-        # Технологии Фазы 4 и Genezis 3.0
+        # Технологии Hyper-Brain
         self.chainer = StrategicSequenceChainer()
         self.deep_simulator = DeepMentalGraphSimulator()
         self.meta_adapter = MetaLearningAdapter()
         self.cross_transfer = CrossDomainTransfer()
         self.hierarchy = AbstractionHierarchy()
+
+        # Высшие мыслительные подсистемы
+        self.dual_process = SystemDualProcessEngine()
+        self.salience_engine = IntuitiveSalienceEngine()
+        self.semantic_concepts = SemanticConceptNetwork()
 
         self.reward_history = []
         self.active_cluster = None
@@ -79,6 +87,12 @@ class Genezis3UltimateEngine:
         self.last_similar_neurons = similar
 
         best_action, confidence = self._vote(similar)
+
+        # Двухпроцессная система Канемана (System 1 vs System 2)
+        system_branch, boosted_conf, sys2_action = self.dual_process.process_decision(self, similar, confidence)
+        if sys2_action is not None:
+            best_action = sys2_action
+            confidence = boosted_conf
 
         if combo_chain and combo_score > 0.8:
             action = combo_chain[1] if len(combo_chain) > 1 else combo_chain[0]
@@ -162,6 +176,10 @@ class Genezis3UltimateEngine:
 
         new_neuron = ShortTermNeuron(self.last_obs, self.last_action, result_flag=flag)
         self.active_cluster.add_neuron(new_neuron)
+
+        # Регистрация эмоциональной яркости и семантической категории
+        self.salience_engine.register_experience(new_neuron, delta_reward=reward)
+        self.semantic_concepts.categorize_neuron(new_neuron)
 
         # Обучение стратегических цепочек шагов
         self.chainer.record_step(new_neuron.id, self.last_action, flag)

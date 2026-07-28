@@ -18,6 +18,9 @@ from core.sequence_chaining import StrategicSequenceChainer
 from core.mental_simulator import DeepMentalGraphSimulator
 from core.meta_adapter import MetaLearningAdapter
 from core.cross_transfer import CrossDomainTransfer
+from core.system_dual_process import SystemDualProcessEngine
+from core.intuitive_salience import IntuitiveSalienceEngine
+from core.semantic_concepts import SemanticConceptNetwork
 
 class UniversalAssociativeBrain:
     """Универсальный Ассоциативный Мозг ИИ (Genezis 2.0) с единым стандартом act() / learn()"""
@@ -69,6 +72,12 @@ class UniversalAssociativeBrain:
             self.meta_adapter = MetaLearningAdapter()
         if not hasattr(self, 'cross_transfer'):
             self.cross_transfer = CrossDomainTransfer()
+        if not hasattr(self, 'dual_process'):
+            self.dual_process = SystemDualProcessEngine()
+        if not hasattr(self, 'salience_engine'):
+            self.salience_engine = IntuitiveSalienceEngine()
+        if not hasattr(self, 'semantic_concepts'):
+            self.semantic_concepts = SemanticConceptNetwork()
         if not hasattr(self, 'reward_history'):
             self.reward_history = []
         if not hasattr(self, 'last_similar_neurons'):
