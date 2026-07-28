@@ -20,6 +20,7 @@ from core.abstraction_hierarchy import AbstractionHierarchy
 from core.system_dual_process import SystemDualProcessEngine
 from core.intuitive_salience import IntuitiveSalienceEngine
 from core.semantic_concepts import SemanticConceptNetwork
+from core.self_driven_goals import SelfDrivenGoalDiscovery
 
 class Genezis3UltimateEngine:
     """Максимальный Универсальный Ассоциативный Движок ИИ Genezis 3.0 Hyper-Brain"""
@@ -42,6 +43,7 @@ class Genezis3UltimateEngine:
         self.dual_process = SystemDualProcessEngine()
         self.salience_engine = IntuitiveSalienceEngine()
         self.semantic_concepts = SemanticConceptNetwork()
+        self.self_driven_goals = SelfDrivenGoalDiscovery()
 
         self.reward_history = []
         self.active_cluster = None
