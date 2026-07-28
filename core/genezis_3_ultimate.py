@@ -1,10 +1,8 @@
 """
-Универсальный Движок Ассоциативного ИИ (Universal Associative Brain)
-Полностью абстрагирован от конкретной среды (Environment Agnostic)
-Подходит для Игр, Робототехники, Трейдинга, Telegram-ботов
+Главный Движок Genezis 3.0 Ultimate (Genezis 3.0 Ultimate Engine)
+Флагманский Универсальный Ассоциативный ИИ Высшего Порядка
 """
 
-import random
 import time
 import numpy as np
 from collections import defaultdict
@@ -18,9 +16,10 @@ from core.sequence_chaining import StrategicSequenceChainer
 from core.mental_simulator import DeepMentalGraphSimulator
 from core.meta_adapter import MetaLearningAdapter
 from core.cross_transfer import CrossDomainTransfer
+from core.abstraction_hierarchy import AbstractionHierarchy
 
-class UniversalAssociativeBrain:
-    """Универсальный Ассоциативный Мозг ИИ (Genezis 2.0) с единым стандартом act() / learn()"""
+class Genezis3UltimateEngine:
+    """Максимальный Универсальный Ассоциативный Движок ИИ Genezis 3.0"""
 
     def __init__(self, action_count=5, router=None):
         self.action_count = action_count
@@ -29,11 +28,12 @@ class UniversalAssociativeBrain:
         self.goal_system = MacroGoalSystem()
         self.spatial_map = SpatialMentalMap()
 
-        # Фаза 4: Мета-Ассоциативные Модули Высшего Порядка
+        # Технологии Фазы 4 и Genezis 3.0
         self.chainer = StrategicSequenceChainer()
         self.deep_simulator = DeepMentalGraphSimulator()
         self.meta_adapter = MetaLearningAdapter()
         self.cross_transfer = CrossDomainTransfer()
+        self.hierarchy = AbstractionHierarchy()
 
         self.reward_history = []
         self.active_cluster = None
@@ -48,7 +48,7 @@ class UniversalAssociativeBrain:
         self.stats = {'steps': 0, 'lessons': 0, 'curiosity_rewards': 0.0}
 
     def _find_neuron_by_id(self, neuron_id):
-        """Быстрый поиск нейрона по ID для предвосхищения"""
+        """Поиск нейрона во всех кластерах по ID"""
         if self.active_cluster:
             for n in self.active_cluster.neurons:
                 if n.id == neuron_id:
@@ -59,44 +59,33 @@ class UniversalAssociativeBrain:
                     return n
         return None
 
-    def _ensure_attributes(self):
-        """Гарантирует инициализацию всех атрибутов для ранее сохраненных из pickle объектов"""
-        if not hasattr(self, 'chainer'):
-            self.chainer = StrategicSequenceChainer()
-        if not hasattr(self, 'deep_simulator'):
-            self.deep_simulator = DeepMentalGraphSimulator()
-        if not hasattr(self, 'meta_adapter'):
-            self.meta_adapter = MetaLearningAdapter()
-        if not hasattr(self, 'cross_transfer'):
-            self.cross_transfer = CrossDomainTransfer()
-        if not hasattr(self, 'reward_history'):
-            self.reward_history = []
-        if not hasattr(self, 'last_similar_neurons'):
-            self.last_similar_neurons = []
-
     def act(self, raw_observation, explore=True):
-        """
-        Универсальный метод выбора действия на основе любого вектора R^D
-        """
-        self._ensure_attributes()
+        """Универсальное принятие решений для вектора любой размерности R^D"""
         obs = self.normalizer.normalize(raw_observation)
         self.stats['steps'] += 1
 
-        # Обновляем макро-цель и эмоциональное состояние
-        self.current_goal = self.goal_system.select_goal(obs)
+        # Мета-Адаптация параметров на лету
+        params = self.meta_adapter.adapt(obs, self.reward_history)
+        conf_thresh = params['confidence_threshold']
 
-        # Выбор контекстного кластера памяти
+        # Извлечение лучшего комбо-маневра из стратегических цепочек
+        combo_chain, combo_score = self.chainer.get_best_combo(self.last_action)
+
+        # Определение целей и контекста
+        self.current_goal = self.goal_system.select_goal(obs)
         self.active_cluster = self.router.select_cluster(obs)
 
-        # Поиск похожих нейронов во всех кластерах
         similar = self._find_similar(obs)
         self.last_similar_neurons = similar
+
         best_action, confidence = self._vote(similar)
 
-        if best_action is not None and confidence > 0.1:
+        if combo_chain and combo_score > 0.8:
+            action = combo_chain[1] if len(combo_chain) > 1 else combo_chain[0]
+        elif best_action is not None and confidence > conf_thresh:
             action = best_action
         elif explore:
-            action = random.randint(0, self.action_count - 1)
+            action = int(np.random.randint(0, self.action_count))
         else:
             action = 0
 
@@ -112,7 +101,7 @@ class UniversalAssociativeBrain:
         return action
 
     def _find_similar(self, obs, threshold=0.4):
-        """Найти похожие состояния во всех кластерах"""
+        """Поиск сходства по всей оперативной памяти"""
         results = []
         if self.active_cluster:
             sims = self.active_cluster.find_similar(obs, threshold=threshold)
@@ -126,13 +115,11 @@ class UniversalAssociativeBrain:
         return results
 
     def _vote(self, similar_neurons):
-        """Взвешенное голосование с глубоким 5-шаговым моделированием по графу памяти"""
+        """Взвешенное голосование с 5-шаговым глубоким моделированием будущего"""
         if not similar_neurons:
             return None, 0.0
 
         votes = defaultdict(float)
-
-        # Фаза 4: 5-шаговая глубокая волновое моделирование будущего по графу
         future_scores = self.deep_simulator.evaluate_future_branches(similar_neurons, self)
 
         for neuron, sim, weight in similar_neurons:
@@ -158,38 +145,41 @@ class UniversalAssociativeBrain:
         return best[0], conf
 
     def learn(self, reward, next_raw_observation, done):
-        """
-        Универсальное обучение по результату шага
-        """
-        self._ensure_attributes()
+        """Шаг обучения с мета-любопытством и снами"""
         if self.last_obs is None or self.last_action is None or self.active_cluster is None:
             return
 
         next_obs = self.normalizer.normalize(next_raw_observation)
+        self.reward_history.append(reward)
 
-        # Внутреннее любопытство (Intrinsic Surprise Reward)
+        # Внутреннее любопытство
         surprise = float(np.linalg.norm(next_obs - self.last_obs))
-        curiosity_reward = min(0.5, surprise * 0.1)
+        curiosity_reward = min(0.5, surprise * self.meta_adapter.curiosity_weight)
         self.stats['curiosity_rewards'] += curiosity_reward
 
         total_reward = reward + curiosity_reward
         flag = self._reward_to_flag(total_reward)
 
-        # Создаем новый краткосрочный нейрон
-        new_neuron = ShortTermNeuron(self.last_obs, self.last_action, flag)
+        new_neuron = ShortTermNeuron(self.last_obs, self.last_action, result_flag=flag)
         self.active_cluster.add_neuron(new_neuron)
 
-        # Последовательная временная связь N_{t-1} -> N_t
+        # Обучение стратегических цепочек шагов
+        self.chainer.record_step(new_neuron.id, self.last_action, flag)
+
         if self.last_neuron is not None and hasattr(self.last_neuron, 'add_next_association'):
             self.last_neuron.add_next_association(new_neuron.id, amount=0.2)
         self.last_neuron = new_neuron
+
+        # Периодическая организация 3-уровневой иерархии абстракций
+        if self.stats['steps'] % 50 == 0:
+            self.hierarchy.process_memory(self.active_cluster)
 
         if done:
             self._decay_on_reset()
             self.analyze_and_simulate()
 
     def analyze_and_simulate(self):
-        """Ретроспективный контрфактический самоанализ ('Сны' и виртуальное моделирование альтернатив)"""
+        """Ретроспективные сны во время ошибок"""
         if not self.history or len(self.history) < 5:
             return 0
 
@@ -211,7 +201,7 @@ class UniversalAssociativeBrain:
         return lessons
 
     def _decay_on_reset(self):
-        """Ослабление и 5-шаговое распределение ошибок при завершении эпизода"""
+        """Ослабление при сбросе"""
         if self.history and len(self.history) > 1:
             steps_back = min(5, len(self.history))
             discount = 1.0
@@ -243,7 +233,7 @@ class UniversalAssociativeBrain:
             return float(reward / 5.0)
 
     def reset_episode(self):
-        """Сбросить локальные состояния для нового эпизода"""
+        """Сброс состояния"""
         self.last_obs = None
         self.last_action = None
         self.last_neuron = None
