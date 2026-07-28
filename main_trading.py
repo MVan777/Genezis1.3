@@ -165,13 +165,17 @@ class TradingVisualizer:
 
     def _update_step(self):
         """Выполнение одного шага торговли"""
-        if self.env.mode == "live":
+        is_live = (self.env.mode == "live")
+        if is_live:
             self.env.update_live_tick()
 
         probs = self.brain.predict_action_probabilities(self.obs)
-        action = self.brain.act(self.obs, explore=True)
+        # В режиме LIVE отключены случайные шаги — работает только обученный мозг ИИ
+        action = self.brain.act(self.obs, explore=(not is_live))
         next_obs, reward, done, info = self.env.step(action)
-        self.brain.learn(reward, next_obs, done)
+
+        if not is_live:
+            self.brain.learn(reward, next_obs, done)
 
         if action != self.last_action and action != 0:
             self.signals_history.append((self.env.current_step, self.env.prices[self.env.current_step - 1], action))
