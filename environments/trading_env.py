@@ -69,7 +69,7 @@ class TradingEnv:
                 self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=symbol_name, total_candles=1000)
 
             self.news_calendar = NewsCalendar(total_steps=len(self.prices))
-            self.reset()
+            self.reset(preserve_step=True)
             return True
         return False
 

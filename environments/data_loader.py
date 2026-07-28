@@ -51,17 +51,20 @@ class HistoricalDataLoader:
                     ohlcv.append(candle)
                     prices.append(cl_p)
 
+        # Расчёт актуальных дат до сегодняшнего реального времени (2026 год)
+        now_dt = datetime.datetime.now()
+        dates = [now_dt - datetime.timedelta(minutes=15 * (total_candles - 1 - i)) for i in range(len(prices))]
+
         # Если данных меньше total_candles — дополняем реалистичным случайным блужданием
         if len(prices) < total_candles:
             start_idx = len(prices)
             last_p = prices[-1] if prices else (30000.0 if "BTC" in symbol else (2000.0 if "ETH" in symbol else (100.0 if "SOL" in symbol else 1.20)))
-            last_dt = dates[-1] if dates else datetime.datetime(2021, 1, 1, 0, 0)
             base_seed = hash(symbol) % 10000
             np.random.seed(base_seed)
 
             for t in range(start_idx, total_candles):
-                last_dt += datetime.timedelta(hours=1)
-                dates.append(last_dt)
+                c_dt = now_dt - datetime.timedelta(minutes=15 * (total_candles - 1 - t))
+                dates.append(c_dt)
 
                 ret = np.random.normal(0.0003, 0.012)
                 open_p = last_p
