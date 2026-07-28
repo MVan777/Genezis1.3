@@ -55,8 +55,9 @@ class TradingEnv:
                 self.current_step = min(self.current_step, len(self.prices) - 1)
 
     def change_symbol(self, symbol_name):
-        """Смена активной торговой пары (BTC/USDT, ETH/USDT, SOL/USDT, EUR/USD)"""
-        if symbol_name in ("BTC/USDT", "ETH/USDT", "SOL/USDT", "EUR/USD"):
+        """Смена активной торговой пары (Crypto & Forex)"""
+        valid_symbols = ("BTC/USDT", "ETH/USDT", "SOL/USDT", "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CHF", "EUR/GBP")
+        if symbol_name in valid_symbols:
             self.active_symbol = symbol_name
             if self.mode == "live":
                 ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=100)

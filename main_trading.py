@@ -130,6 +130,30 @@ class TradingVisualizer:
                     self.env.change_symbol("SOL/USDT")
                     self.signals_history = []
                     self.obs = self.env._get_observation()
+                elif event.key == pygame.K_g:
+                    self.env.change_symbol("GBP/USD")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
+                elif event.key == pygame.K_j:
+                    self.env.change_symbol("USD/JPY")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
+                elif event.key == pygame.K_a:
+                    self.env.change_symbol("AUD/USD")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
+                elif event.key == pygame.K_c:
+                    self.env.change_symbol("USD/CHF")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
+                elif event.key == pygame.K_x:
+                    self.env.change_symbol("EUR/USD")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
+                elif event.key == pygame.K_f:
+                    self.env.change_symbol("EUR/GBP")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
                 elif event.key == pygame.K_F1:
                     self.speed = 1
                 elif event.key == pygame.K_F2:

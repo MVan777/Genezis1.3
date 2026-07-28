@@ -23,7 +23,12 @@ class HistoricalDataLoader:
             "BTC/USDT": "btc_usdt.csv",
             "ETH/USDT": "eth_usdt.csv",
             "SOL/USDT": "sol_usdt.csv",
-            "EUR/USD": "eur_usd.csv"
+            "EUR/USD": "eur_usd.csv",
+            "GBP/USD": "gbp_usd.csv",
+            "USD/JPY": "usd_jpy.csv",
+            "AUD/USD": "aud_usd.csv",
+            "USD/CHF": "usd_chf.csv",
+            "EUR/GBP": "eur_gbp.csv"
         }
         filename = symbol_map.get(symbol, "btc_usdt.csv")
         csv_path = os.path.join(self.data_dir, filename)
