@@ -70,4 +70,7 @@ class AutoMemoryCompressor:
         cluster.neurons = surviving_neurons
         cluster.cleanup()
 
+        # 3. Выполняем слияние дубликатов (similarity > 0.95) в Золотые Прототипы
+        merged_count = cluster.compress(threshold=0.95)
+
         return pruned_count, merged_count
