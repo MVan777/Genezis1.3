@@ -175,8 +175,12 @@ class TradingEnv:
         Выполнить шаг в биржевой торговле с экспирацией
         action: 0 - HOLD / FLAT, 1 - BUY (CALL / UP), 2 - SELL (PUT / DOWN)
         """
-        self.current_step += 1
-        curr_price = self.prices[self.current_step - 1]
+        if self.mode == "live":
+            self.current_step = max(0, len(self.prices) - 1)
+        else:
+            self.current_step = min(len(self.prices) - 1, self.current_step + 1)
+
+        curr_price = self.prices[max(0, self.current_step - 1)]
         next_price = self.prices[self.current_step]
 
         reward = 0.0
