@@ -231,6 +231,7 @@ class TradingEnv:
 
         # Если баланс упал ниже $300 (ликвидация): пополняем депозит и наказываем ИИ без сброса назад!
         if self.balance <= self.initial_balance * 0.3:
+            self.liquidations = getattr(self, 'liquidations', 0) + 1
             reward -= 20.0
             self.balance = self.initial_balance
             trade_event = "liquidation_penalty_refill"
@@ -274,6 +275,7 @@ class TradingEnv:
             'total_trades': self.total_trades,
             'winning_trades': self.winning_trades,
             'win_rate': (self.winning_trades / self.total_trades * 100.0) if self.total_trades > 0 else 0.0,
+            'liquidations': getattr(self, 'liquidations', 0),
             'selected_expiry': self.selected_expiry_steps,
             'active_options': self.active_options,
             'last_expired': last_expired_info,

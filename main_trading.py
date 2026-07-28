@@ -400,22 +400,26 @@ class TradingVisualizer:
 
         curr_y = y + 45
 
-        # 1. Карточка Баланса и PnL
+        # 1. Карточка Баланса, PnL и Сливов
         bal = self.last_info['balance']
         pnl = bal - self.env.initial_balance
         pnl_pct = (pnl / self.env.initial_balance) * 100.0
         pnl_color = self.GREEN_BULL if pnl >= 0 else self.RED_BEAR
+        liqs = self.last_info.get('liquidations', 0)
+        liq_color = self.GREEN_BULL if liqs == 0 else self.RED_BEAR
 
-        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 80), border_radius=6)
+        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 95), border_radius=6)
         lbl_bal = self.font_small.render("ТЕКУЩИЙ БАЛАНС:", True, self.MUTED_TEXT)
         val_bal = self.font_title.render(f"${bal:.2f}", True, self.TEXT_COLOR)
         val_pnl = self.font_bold.render(f"{pnl:+.2f}$ ({pnl_pct:+.1f}%)", True, pnl_color)
+        t_liq = self.font_small.render(f"💀 Сливов депозита: {liqs}", True, liq_color)
 
-        self.screen.blit(lbl_bal, (x + 25, curr_y + 10))
-        self.screen.blit(val_bal, (x + 25, curr_y + 28))
-        self.screen.blit(val_pnl, (x + 25, curr_y + 53))
+        self.screen.blit(lbl_bal, (x + 25, curr_y + 8))
+        self.screen.blit(val_bal, (x + 25, curr_y + 24))
+        self.screen.blit(val_pnl, (x + 25, curr_y + 48))
+        self.screen.blit(t_liq, (x + 25, curr_y + 70))
 
-        curr_y += 95
+        curr_y += 110
 
         # 2. Карточка Позиции и Экспирации
         pos = self.last_info['position']
