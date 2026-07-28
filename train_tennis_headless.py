@@ -81,8 +81,10 @@ def run_headless_training(max_matches=100):
                 elif ev == 'ai_miss':
                     misses += 1
 
-            # Авто-компрессия и очистка неиспользуемых нейронов после матча
-            pruned, merged = auto_compressor.compress_brain(brain)
+            # Авто-компрессия и очистка каждые 3 матча
+            pruned = 0
+            if match_count % 3 == 0:
+                pruned, merged = auto_compressor.compress_brain(brain)
 
             # Статистика нейронов и связей
             total_n = sum(len(c.neurons) for c in brain.router.clusters)
@@ -91,9 +93,10 @@ def run_headless_training(max_matches=100):
 
             # Форматированный вывод матча в терминал
             win_symbol = "🏆" if info['score_ai'] > info['score_opp'] else "📊"
+            pruned_str = f" (🧹-{pruned})" if pruned > 0 else ""
             print(f"{win_symbol} Матч {match_count:03d} | ИИ {info['score_ai']:02d} : {info['score_opp']:02d} Алгоритм | "
                   f"Отбито: {hits:02d} | Пропущено: {misses:02d} | "
-                  f"Нейронов: {total_n:04d} (🧹-{pruned}) | Связей: {total_c:04d} | Уроков: {lessons:03d}")
+                  f"Нейронов: {total_n:04d}{pruned_str} | Связей: {total_c:04d} | Уроков: {lessons:03d}")
 
             # Сохраняем мозг каждые 5 матчей
             if match_count % 5 == 0:
