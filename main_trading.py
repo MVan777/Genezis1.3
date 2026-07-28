@@ -166,29 +166,45 @@ class TradingVisualizer:
     def _update_step(self):
         """Выполнение одного шага торговли"""
         is_live = (self.env.mode == "live")
+
         if is_live:
+            # 1. Синхронное обновление живого тика с Binance (без прокрутки истории)
             self.env.update_live_tick()
+            self.obs = self.env._get_observation()
+            probs = self.brain.predict_action_probabilities(self.obs)
+            action = self.brain.act(self.obs, explore=False)
 
-        probs = self.brain.predict_action_probabilities(self.obs)
-        # В режиме LIVE отключены случайные шаги — работает только обученный мозг ИИ
-        action = self.brain.act(self.obs, explore=(not is_live))
-        next_obs, reward, done, info = self.env.step(action)
+            # 2. Если сигнала еще нет, но ИИ уверен >= 70%, формируем живой опцион Binance
+            p_act = probs.get(action, 0.0)
+            if action != 0 and p_act >= 70.0 and not self.env.active_options:
+                next_obs, reward, done, info = self.env.step(action)
+                self.signals_history.append((self.env.current_step, self.env.prices[-1], action))
+            else:
+                next_obs, reward, done, info = self.env.step(0)  # Статус HOLD / Сканер в поиске
 
-        if not is_live:
+            info['probs'] = probs
+            self.last_action = action
+            self.last_info = info
+            self.obs = next_obs
+        else:
+            # Режим SIMULATION — быстрая прогонная тренировка по истории
+            probs = self.brain.predict_action_probabilities(self.obs)
+            action = self.brain.act(self.obs, explore=True)
+            next_obs, reward, done, info = self.env.step(action)
             self.brain.learn(reward, next_obs, done)
 
-        if action != self.last_action and action != 0:
-            self.signals_history.append((self.env.current_step, self.env.prices[self.env.current_step - 1], action))
+            if action != self.last_action and action != 0:
+                self.signals_history.append((self.env.current_step, self.env.prices[self.env.current_step - 1], action))
 
-        info['probs'] = probs
-        self.last_action = action
-        self.last_info = info
-        self.obs = next_obs
+            info['probs'] = probs
+            self.last_action = action
+            self.last_info = info
+            self.obs = next_obs
 
-        if done:
-            self.brain.reset_episode()
-            self.obs = self.env.reset(preserve_step=True)
-            self.signals_history = []
+            if done:
+                self.brain.reset_episode()
+                self.obs = self.env.reset(preserve_step=True)
+                self.signals_history = []
 
     def _draw(self):
         """Полная отрисовка дашборда"""

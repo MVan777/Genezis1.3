@@ -52,12 +52,12 @@ class TradingEnv:
         return False
 
     def update_live_tick(self):
-        """Обновить свечи с живого рынка Binance при работе в режиме 'live'"""
+        """Обновить свечи с живого рынка Binance при работе в режиме 'live' (без прокрутки истории)"""
         if self.mode == "live":
-            ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=100)
+            ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=60)
             if lprices and len(lprices) > 30:
                 self.dates, self.prices, self.ohlcv = ldates, np.array(lprices, dtype=np.float32), lohlcv
-                self.current_step = min(self.current_step, len(self.prices) - 1)
+                self.current_step = len(self.prices) - 1
 
     def change_symbol(self, symbol_name):
         """Смена активной торговой пары (Crypto & Forex)"""
