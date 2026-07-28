@@ -46,36 +46,83 @@ DEFAULT_DIALOGUES = [
     {"prompt": "Спасибо за помощь", "answer": "Всегда пожалуйста! Обращайтесь в любой момент."}
 ]
 
+import torch
+
+# Карты синонимов и корней слов русского языка
+SYNONYM_MAP = {
+    "приветик": "привет",
+    "приветствую": "привет",
+    "салют": "привет",
+    "здрасте": "здравствуй",
+    "здравствуйте": "здравствуй",
+    "хей": "привет",
+    "салам": "привет",
+    "делишки": "дела",
+    "житуха": "дела",
+    "жизнь": "дела",
+    "пока": "пока",
+    "прощай": "пока",
+    "досвидания": "пока",
+    "пака": "пока",
+    "благодарю": "спасибо",
+    "спасбо": "спасибо",
+    "спс": "спасибо",
+}
+
+def stem_russian_word(word: str) -> str:
+    """Извлечение смыслового корня слова (русский стеммер)"""
+    w = word.lower().strip("!?,. \t\n")
+    if w in SYNONYM_MAP:
+        return SYNONYM_MAP[w]
+
+    for ending in ("ами", "ями", "ого", "его", "ему", "ому", "ешь", "ете", "им", "ым", "ом", "ем", "ах", "ях", "ик", "чик", "ок", "а", "я", "о", "е", "у", "ю", "ы", "и"):
+        if len(w) > 4 and w.endswith(ending):
+            return w[:-len(ending)]
+    return w
+
+class SemanticTextVectorizer:
+    """Семантический векторизатор на PyTorch для работы с синонимами и опечатками"""
+
+    def __init__(self, dim: int = 16):
+        self.dim = dim
+
+    def encode(self, text: str) -> np.ndarray:
+        """Перевод текста в смысловой вектор R^dim на PyTorch"""
+        text_clean = text.lower().strip("!?,. \t\n")
+        if not text_clean:
+            return np.zeros(self.dim, dtype=np.float32)
+
+        words = text_clean.split()
+        stemmed_words = [stem_russian_word(w) for w in words]
+
+        # Создаем тензор PyTorch для семантического аккумулятора
+        tensor_vec = torch.zeros(self.dim, dtype=torch.float32)
+
+        for i, word in enumerate(stemmed_words):
+            h = int(hashlib.md5(word.encode('utf-8')).hexdigest(), 16)
+            idx = h % self.dim
+            # Относительный вес слова
+            weight = 2.0 if len(word) > 3 else 1.0
+            tensor_vec[idx] += weight * (1.0 + 0.1 * i)
+
+            # Буквенные n-граммы для защиты от опечаток
+            for n in (2, 3):
+                for k in range(len(word) - n + 1):
+                    sub = word[k:k+n]
+                    sub_idx = int(hashlib.sha256(sub.encode('utf-8')).hexdigest(), 16) % self.dim
+                    tensor_vec[sub_idx] += 0.3
+
+        # Нормализация тензора L2
+        norm = torch.norm(tensor_vec)
+        if norm > 1e-6:
+            tensor_vec = tensor_vec / norm
+
+        return tensor_vec.numpy()
+
+global_vectorizer = SemanticTextVectorizer(dim=16)
+
 def encode_text_to_vector(text: str, dim: int = 16) -> np.ndarray:
-    """
-    Стабильное преобразование текстовой строки в нормализованный вектор R^dim
-    Использует хэширование n-грамм и символьные профили.
-    """
-    text_clean = text.lower().strip()
-    vector = np.zeros(dim, dtype=np.float32)
-    
-    if not text_clean:
-        return vector
-
-    # Символьный профиль + хэширование байтовых n-грамм
-    for i, char in enumerate(text_clean):
-        idx = ord(char) % dim
-        vector[idx] += 1.0 + (i * 0.05)
-
-    # N-граммы длины 2 и 3
-    for n in (2, 3):
-        for i in range(len(text_clean) - n + 1):
-            ngram = text_clean[i:i+n]
-            h = int(hashlib.md5(ngram.encode('utf-8')).hexdigest(), 16)
-            idx = h % dim
-            vector[idx] += 0.5
-
-    # Нормализация вектора по L2 норме
-    norm = np.linalg.norm(vector)
-    if norm > 1e-6:
-        vector = vector / norm
-
-    return vector
+    return global_vectorizer.encode(text)
 
 class TextDialogueEnv:
     """Среда обучения ИИ диалогам на естественном языке"""
