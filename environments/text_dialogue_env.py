@@ -83,7 +83,7 @@ def stem_russian_word(word: str) -> str:
 class SemanticTextVectorizer:
     """Семантический векторизатор на PyTorch для работы с синонимами и опечатками"""
 
-    def __init__(self, dim: int = 16):
+    def __init__(self, dim: int = 32):
         self.dim = dim
 
     def encode(self, text: str) -> np.ndarray:
@@ -102,15 +102,14 @@ class SemanticTextVectorizer:
             h = int(hashlib.md5(word.encode('utf-8')).hexdigest(), 16)
             idx = h % self.dim
             # Относительный вес слова
-            weight = 2.0 if len(word) > 3 else 1.0
+            weight = 3.0 if len(word) > 3 else 1.5
             tensor_vec[idx] += weight * (1.0 + 0.1 * i)
 
-            # Буквенные n-граммы для защиты от опечаток
-            for n in (2, 3):
-                for k in range(len(word) - n + 1):
-                    sub = word[k:k+n]
-                    sub_idx = int(hashlib.sha256(sub.encode('utf-8')).hexdigest(), 16) % self.dim
-                    tensor_vec[sub_idx] += 0.3
+            # Буквенные триграммы для защиты от опечаток
+            for k in range(len(word) - 2):
+                sub = word[k:k+3]
+                sub_idx = int(hashlib.sha256(sub.encode('utf-8')).hexdigest(), 16) % self.dim
+                tensor_vec[sub_idx] += 0.2
 
         # Нормализация тензора L2
         norm = torch.norm(tensor_vec)
@@ -119,9 +118,9 @@ class SemanticTextVectorizer:
 
         return tensor_vec.numpy()
 
-global_vectorizer = SemanticTextVectorizer(dim=16)
+global_vectorizer = SemanticTextVectorizer(dim=32)
 
-def encode_text_to_vector(text: str, dim: int = 16) -> np.ndarray:
+def encode_text_to_vector(text: str, dim: int = 32) -> np.ndarray:
     return global_vectorizer.encode(text)
 
 class TextDialogueEnv:

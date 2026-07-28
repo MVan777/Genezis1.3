@@ -209,14 +209,44 @@ class UniversalAssociativeBrain:
         if hasattr(self, '_neuron_cache') and self._neuron_cache is not None:
             self._neuron_cache[new_neuron.id] = new_neuron
 
-        # Последовательная временная связь N_{t-1} -> N_t
+        # Последовательная временная связь N_{t-1} -> N_t (только внутри одного эпизода)
         if self.last_neuron is not None and hasattr(self.last_neuron, 'add_next_association'):
             self.last_neuron.add_next_association(new_neuron.id, amount=0.2)
-        self.last_neuron = new_neuron
+            
+        # При сильном отбивании или пропуске проводим временное распределение кредита подкрепления по траектории (25-30 шагов)
+        if reward < -2.0:
+            steps_back = min(30, len(self.history))
+            discount = 1.0
+            for k in range(1, steps_back + 1):
+                moment = self.history[-k]
+                obs_k = moment.get('obs')
+                if obs_k is not None and self.active_cluster:
+                    similar = self.active_cluster.find_similar(obs_k, threshold=0.5, max_results=3)
+                    for idx, sim, n in similar:
+                        if n.action == moment.get('action'):
+                            n.flag = max(-1.0, n.flag - 0.3 * discount)
+                            n.strength *= (1.0 - 0.05 * discount)
+                discount *= 0.92
+        elif reward > 2.0:
+            steps_back = min(25, len(self.history))
+            discount = 1.0
+            for k in range(1, steps_back + 1):
+                moment = self.history[-k]
+                obs_k = moment.get('obs')
+                if obs_k is not None and self.active_cluster:
+                    similar = self.active_cluster.find_similar(obs_k, threshold=0.5, max_results=3)
+                    for idx, sim, n in similar:
+                        if n.action == moment.get('action'):
+                            n.flag = min(1.0, n.flag + 0.3 * discount)
+                            n.strength = min(2.0, n.strength + 0.1 * discount)
+                discount *= 0.92
 
         if done:
+            self.last_neuron = None
             self._decay_on_reset()
             self.analyze_and_simulate()
+        else:
+            self.last_neuron = new_neuron
 
     def analyze_and_simulate(self):
         """Ретроспективный контрфактический самоанализ ('Сны' и виртуальное моделирование альтернатив)"""
@@ -241,36 +271,36 @@ class UniversalAssociativeBrain:
         return lessons
 
     def _decay_on_reset(self):
-        """Ослабление и 5-шаговое распределение ошибок при завершении эпизода"""
+        """Ослабление и 25-шаговое распределение ошибок при завершении эпизода"""
         if self.history and len(self.history) > 1:
-            steps_back = min(5, len(self.history))
+            steps_back = min(25, len(self.history))
             discount = 1.0
             for k in range(1, steps_back + 1):
                 moment = self.history[-k]
                 obs_k = moment.get('obs')
                 if obs_k is not None and self.active_cluster:
-                    similar = self.active_cluster.find_similar(obs_k, threshold=0.6, max_results=3)
+                    similar = self.active_cluster.find_similar(obs_k, threshold=0.5, max_results=3)
                     for idx, sim, n in similar:
                         if n.action == moment.get('action'):
                             n.flag = max(-1.0, n.flag - 0.2 * discount)
-                            n.strength *= (1.0 - 0.1 * discount)
-                discount *= 0.7
+                            n.strength *= (1.0 - 0.05 * discount)
+                discount *= 0.92
 
     def _reward_to_flag(self, reward):
-        if reward > 5.0:
+        if reward >= 3.0:
             return 1.0
         elif reward > 1.0:
-            return 0.5
-        elif reward > 0.1:
+            return 0.6
+        elif reward > 0.05:
             return 0.2
-        elif reward < -1.0:
+        elif reward < -3.0:
             return -1.0
-        elif reward < -0.2:
-            return -0.5
-        elif abs(reward) < 0.1:
-            return 0.0
+        elif reward < -1.0:
+            return -0.6
+        elif reward < -0.05:
+            return -0.2
         else:
-            return float(reward / 5.0)
+            return 0.0
 
     def reset_episode(self):
         """Сбросить локальные состояния для нового эпизода"""

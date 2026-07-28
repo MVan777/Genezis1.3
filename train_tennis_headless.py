@@ -10,6 +10,12 @@ import time
 import pickle
 import signal
 
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from environments.tennis_env import TennisEnv
@@ -99,8 +105,10 @@ def run_headless_training(max_matches=100):
             # Форматированный вывод матча в терминал
             win_symbol = "🏆" if info['score_ai'] > info['score_opp'] else "📊"
             pruned_str = f" (🧹-{pruned})" if pruned > 0 else ""
+            tot_shots = hits + misses
+            hit_pct = (hits / tot_shots * 100.0) if tot_shots > 0 else 0.0
             print(f"{win_symbol} Матч {match_count:03d} | ИИ {info['score_ai']:02d} : {info['score_opp']:02d} Алгоритм | "
-                  f"Отбито: {hits:02d} | Пропущено: {misses:02d} | "
+                  f"Отбито: {hits:02d} | Пропущено: {misses:02d} | Точность: {hit_pct:.1f}% | "
                   f"Нейронов: {total_n:04d}{pruned_str} | Связей: {total_c:04d} | Уроков: {lessons:03d}")
 
             # Сохраняем мозг каждые 5 матчей
@@ -126,7 +134,7 @@ def save_brain(brain):
         print(f"⚠️ Ошибка сохранения: {e}")
 
 if __name__ == "__main__":
-    matches = 50
+    matches = 200
     if len(sys.argv) > 1:
         try:
             matches = int(sys.argv[1])

@@ -102,19 +102,19 @@ class TennisEnv:
         elif self.ball_x + self.ball_radius >= self.width - 20:
             if self.ai_paddle_y <= self.ball_y <= self.ai_paddle_y + self.paddle_height:
                 self.ball_vx = -abs(self.ball_vx) * 1.05
-                reward += 2.0  # Отличная награда за отбивание мяча
+                reward += 4.0  # Отличная награда за отбивание мяча
                 event = "ai_hit"
             else:
                 # Пропуск мяча ИИ
                 self.score_opp += 1
-                reward -= 3.0
+                reward -= 6.0  # Сильный штраф за пропуск мяча
                 event = "ai_miss"
                 self._reset_ball(direction=-1)
 
-        # Бонус за точное следование за мячом
+        # Небольшой бонус за точное следование за мячом по горизонтали/вертикали
         ai_center = self.ai_paddle_y + self.paddle_height / 2.0
         if abs(ai_center - self.ball_y) < 20:
-            reward += 0.05
+            reward += 0.01
 
         done = (self.step_count >= self.max_steps or self.score_ai >= 10 or self.score_opp >= 10)
         info = {

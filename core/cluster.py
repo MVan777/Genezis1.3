@@ -99,11 +99,17 @@ class MemoryCluster:
         # Быстрая матричная векторизация для совпадения длин ситуаций
         if all(len(n.situation) == sit_len for n in self.neurons):
             matrix = np.array([n.situation for n in self.neurons], dtype=np.float32)
-            norms = np.linalg.norm(matrix, axis=1)
-            norms[norms == 0] = 1e-8
 
-            dots = np.dot(matrix, situation)
-            sims = dots / (norms * sit_norm)
+            if self.domain in ("tennis", "combat", "emergency", "exploration") or sit_len < 16:
+                # RBF Гауссово сходство по Евклидову расстоянию для физических сред
+                dists_sq = np.sum((matrix - situation) ** 2, axis=1)
+                sims = np.exp(-4.0 * dists_sq)
+            else:
+                # Косинусная близость для высокоразмерных текстов/эмбеддингов
+                norms = np.linalg.norm(matrix, axis=1)
+                norms[norms == 0] = 1e-8
+                dots = np.dot(matrix, situation)
+                sims = dots / (norms * sit_norm)
 
             results = []
             for i, (sim, neuron) in enumerate(zip(sims, self.neurons)):
@@ -139,14 +145,12 @@ class MemoryCluster:
         return similarities[:max_results]
 
     def cleanup(self):
-        """Очистка нейтральных, слабых нейронов и осиротевших связей"""
+        """Очистка ослабевших неиспользуемых нейронов и осиротевших связей"""
         old_count = len(self.neurons)
 
         to_remove = []
         for neuron in self.neurons:
-            if abs(neuron.flag) < NEUTRAL_THRESHOLD:
-                to_remove.append(neuron.id)
-            elif neuron.strength < 0.1:
+            if neuron.strength < 0.05:
                 to_remove.append(neuron.id)
             elif hasattr(neuron, 'should_remove') and neuron.should_remove():
                 to_remove.append(neuron.id)

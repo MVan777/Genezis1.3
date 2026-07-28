@@ -58,9 +58,13 @@ class Router:
                 return state['world_type']
 
         if isinstance(state, (list, np.ndarray, tuple)):
-            # 16-мерный вектор текстовой среды диалога
-            if len(state) == 16:
+            # Текстовые векторы среды диалога (16, 32, 64 dim)
+            if len(state) in (16, 32, 64):
                 return "dialogue"
+
+            # 7-мерное состояние игры Теннис
+            if len(state) == 7:
+                return "tennis"
 
             # 5-мерное состояние игры Выживание
             if len(state) == 5:

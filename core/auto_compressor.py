@@ -45,19 +45,13 @@ class AutoMemoryCompressor:
             flag = getattr(n, 'flag', 0.0)
             conf = getattr(n, 'confidence', 0.0)
 
-            # Не удаляем нейроны с выверенным позитивным подкреплением
-            if flag > 0.0:
+            # Не удаляем нейроны с позитивным или нейтральным подкреплением (flag >= 0.0)
+            if flag >= 0.0:
                 surviving_neurons.append(n)
                 continue
 
-            # Отсеиваем бесполезный неиспользуемый мусор (usage <= 1 и плохой результат)
-            if usage <= 1 and flag < 0.0:
-                pruned_count += 1
-                cluster.remove_neuron(n.id)
-                continue
-
-            # Отсеиваем осиротевшие нейроны с ничтожной уверенностью
-            if usage <= 2 and conf < 0.05 and flag <= 0.0:
+            # Отсеиваем только явно оштрафованный негативный опыт (usage <= 1 и flag < -0.3)
+            if usage <= 1 and flag < -0.3:
                 pruned_count += 1
                 cluster.remove_neuron(n.id)
                 continue
