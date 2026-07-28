@@ -190,8 +190,8 @@ class TradingVisualizer:
         step_w = (w - 30) / float(window_size)
 
         for i, p in enumerate(window_prices):
-            px = x + 15 + i * step_w
-            py = y + h - 20 - ((p - min_p) / p_range) * (h - 60)
+            px = float(x + 15 + i * step_w)
+            py = float(y + h - 20 - ((p - min_p) / p_range) * (h - 60))
             points.append((px, py))
 
         if len(points) > 1:
@@ -201,16 +201,16 @@ class TradingVisualizer:
         for sig_step, sig_price, sig_action in self.signals_history:
             if start_idx <= sig_step <= curr_step:
                 idx_offset = sig_step - start_idx
-                sx = x + 15 + idx_offset * step_w
-                sy = y + h - 20 - ((sig_price - min_p) / p_range) * (h - 60)
+                sx = float(x + 15 + idx_offset * step_w)
+                sy = float(y + h - 20 - ((sig_price - min_p) / p_range) * (h - 60))
 
                 if sig_action == 1:  # BUY
-                    pygame.draw.polygon(self.screen, self.GREEN_BULL, [(sx, sy - 12), (sx - 6, sy), (sx + 6, sy)])
+                    pygame.draw.polygon(self.screen, self.GREEN_BULL, [(sx, sy - 12.0), (sx - 6.0, sy), (sx + 6.0, sy)])
                 elif sig_action == 2:  # SELL
-                    pygame.draw.polygon(self.screen, self.RED_BEAR, [(sx, sy + 12), (sx - 6, sy), (sx + 6, sy)])
+                    pygame.draw.polygon(self.screen, self.RED_BEAR, [(sx, sy + 12.0), (sx - 6.0, sy), (sx + 6.0, sy)])
 
         # Текущая цена
-        curr_price = self.env.prices[curr_step]
+        curr_price = float(self.env.prices[curr_step])
         curr_txt = self.font_bold.render(f"Цена: ${curr_price:.2f}", True, self.TEXT_COLOR)
         self.screen.blit(curr_txt, (x + w - 140, y + 10))
 
@@ -247,12 +247,12 @@ class TradingVisualizer:
             diffs = np.diff(sub)
             gains = np.where(diffs > 0, diffs, 0)
             losses = np.where(diffs < 0, -diffs, 0)
-            ag = np.mean(gains) if len(gains) > 0 else 1e-8
-            al = np.mean(losses) if len(losses) > 0 else 1e-8
+            ag = float(np.mean(gains)) if len(gains) > 0 else 1e-8
+            al = float(np.mean(losses)) if len(losses) > 0 else 1e-8
             rsi = 100.0 if al == 0 else 100.0 - (100.0 / (1.0 + (ag / al)))
             
-            rx = x + 15 + i * step_w
-            ry = y + 40 + (1.0 - rsi / 100.0) * (h - 60)
+            rx = float(x + 15 + i * step_w)
+            ry = float(y + 40 + (1.0 - rsi / 100.0) * (h - 60))
             rsi_points.append((rx, ry))
 
         if len(rsi_points) > 1:
