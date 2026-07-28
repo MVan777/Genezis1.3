@@ -58,13 +58,25 @@ class MemoryCluster:
         return True
 
     def remove_neuron(self, neuron_id):
-        """Удалить нейрон из кластера"""
+        """Удалить нейрон из кластера и очистить его связи"""
         if neuron_id not in self.neuron_ids:
             return False
 
         self.neurons = [n for n in self.neurons if n.id != neuron_id]
         self.neuron_ids.remove(neuron_id)
         self.total_neurons_removed += 1
+
+        # Очистка мусорных связей из матрицы сходства
+        if hasattr(self, 'connection_matrix'):
+            keys_to_del = [k for k in self.connection_matrix.keys() if neuron_id in k]
+            for k in keys_to_del:
+                del self.connection_matrix[k]
+
+        # Очистка битых ссылок в next_associations у оставшихся нейронов
+        for n in self.neurons:
+            if hasattr(n, 'next_associations') and neuron_id in n.next_associations:
+                del n.next_associations[neuron_id]
+
         return True
 
     def find_similar(self, situation, threshold=0.5, max_results=20):
@@ -123,7 +135,7 @@ class MemoryCluster:
         return similarities[:max_results]
 
     def cleanup(self):
-        """Очистка нейтральных и слабых нейронов"""
+        """Очистка нейтральных, слабых нейронов и осиротевших связей"""
         old_count = len(self.neurons)
 
         to_remove = []
@@ -137,6 +149,12 @@ class MemoryCluster:
 
         for nid in to_remove:
             self.remove_neuron(nid)
+
+        # Очистка осиротевших и ослабевших связей
+        if hasattr(self, 'connection_matrix'):
+            stale_keys = [k for k, v in self.connection_matrix.items() if k[0] not in self.neuron_ids or k[1] not in self.neuron_ids or v < 0.05]
+            for k in stale_keys:
+                del self.connection_matrix[k]
 
         return len(self.neurons) != old_count
 

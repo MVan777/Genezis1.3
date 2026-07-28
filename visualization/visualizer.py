@@ -144,8 +144,15 @@ class NeuronVisualizer:
             # Обводка цветом действия
             pygame.draw.circle(self.screen, ACTION_COLORS[neuron.action], (screen_x, screen_y), size, 2)
 
+        # Считаем все типы связей (пространственные + временные)
+        total_connections = len(connections)
+        for n_data in all_neurons:
+            n_obj = n_data['neuron']
+            if hasattr(n_obj, 'next_associations'):
+                total_connections += len(n_obj.next_associations)
+
         # Статистика
-        self._draw_stats(agent, router, active_cluster, current_action, len(connections))
+        self._draw_stats(agent, router, active_cluster, current_action, total_connections)
 
     def _draw_stats(self, agent, router, active_cluster, current_action, connection_count):
         """Статистика на панели с макро-целями и эмоциями"""

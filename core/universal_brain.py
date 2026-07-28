@@ -29,6 +29,7 @@ class UniversalAssociativeBrain:
         self.last_obs = None
         self.last_action = None
         self.last_neuron = None
+        self.last_similar_neurons = []
 
         self.emotions = {'fear': 0.0, 'aggression': 0.0, 'curiosity': 0.0, 'calm': 0.0}
         self.current_goal = 0
@@ -62,6 +63,7 @@ class UniversalAssociativeBrain:
 
         # Поиск похожих нейронов во всех кластерах
         similar = self._find_similar(obs)
+        self.last_similar_neurons = similar
         best_action, confidence = self._vote(similar)
 
         if best_action is not None and confidence > 0.1:
@@ -160,6 +162,29 @@ class UniversalAssociativeBrain:
 
         if done:
             self._decay_on_reset()
+            self.analyze_and_simulate()
+
+    def analyze_and_simulate(self):
+        """Ретроспективный контрфактический самоанализ ('Сны' и виртуальное моделирование альтернатив)"""
+        if not self.history or len(self.history) < 5:
+            return 0
+
+        key_moments = [h for h in self.history if h.get('confidence', 1.0) < 0.3]
+        lessons = 0
+
+        for moment in key_moments[:5]:
+            obs_m = moment['obs']
+            action_m = moment['action']
+            for alt_action in range(self.action_count):
+                if alt_action == action_m:
+                    continue
+                sim_neuron = ShortTermNeuron(obs_m, alt_action, result_flag=0.3)
+                if self.active_cluster:
+                    self.active_cluster.add_neuron(sim_neuron)
+                    lessons += 1
+
+        self.stats['lessons'] += lessons
+        return lessons
 
     def _decay_on_reset(self):
         """Ослабление и 5-шаговое распределение ошибок при завершении эпизода"""

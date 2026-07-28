@@ -148,21 +148,6 @@ def load_all():
         except:
             pass
 
-    # Загружаем кластеры и связи (если есть)
-    if os.path.exists(SAVE_FILES['clusters']) and os.path.exists(SAVE_FILES['connections']):
-        try:
-            with open(SAVE_FILES['clusters'], 'rb') as f:
-                clusters_data = pickle.load(f)
-            with open(SAVE_FILES['connections'], 'rb') as f:
-                connections_data = pickle.load(f)
-
-            if hasattr(agent, 'router'):
-                agent.router.load_all(clusters_data, {})
-                agent.router.connections.from_dict(connections_data)
-            print(f"  ✅ Загружены кластеры")
-        except:
-            pass
-
     print(f"✅ Загрузка завершена")
     return agent, bank, stats
 
@@ -171,7 +156,7 @@ def load_all():
 # ФУНКЦИЯ ПОДСЧЁТА СТАТИСТИКИ НЕЙРОНОВ
 # ============================================
 def get_neuron_stats(agent):
-    """Получить статистику по нейронам и связям"""
+    """Получить полную статистику по нейронам и всем типам связей (временным и пространственным)"""
     if not hasattr(agent, 'router') or not agent.router:
         return 0, 0
 
@@ -180,8 +165,17 @@ def get_neuron_stats(agent):
 
     for cluster in agent.router.clusters:
         total_neurons += len(cluster.neurons)
+        # Пространственные связи элементов
         if hasattr(cluster, 'connection_matrix'):
             total_connections += len(cluster.connection_matrix)
+        # Последовательные временные связи (N_t-1 -> N_t)
+        for neuron in cluster.neurons:
+            if hasattr(neuron, 'next_associations'):
+                total_connections += len(neuron.next_associations)
+
+    # Межкластерные связи
+    if hasattr(agent.router, 'connections') and hasattr(agent.router.connections, 'matrix'):
+        total_connections += len(agent.router.connections.matrix)
 
     return total_neurons, total_connections
 
