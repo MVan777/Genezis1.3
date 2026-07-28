@@ -275,6 +275,10 @@ class UniversalAssociativeBrain:
                             n.strength = min(2.0, n.strength + 0.1 * discount)
                 discount *= 0.92
 
+        # Вызываем ретроспективный анализ контрфактов при закрытии сделок
+        if abs(reward) > 1.0:
+            self.analyze_and_simulate()
+
         if done:
             self.last_neuron = None
             self._decay_on_reset()
@@ -284,24 +288,27 @@ class UniversalAssociativeBrain:
 
     def analyze_and_simulate(self):
         """Ретроспективный контрфактический самоанализ ('Сны' и виртуальное моделирование альтернатив)"""
-        if not self.history or len(self.history) < 5:
+        if not self.history or len(self.history) < 2:
             return 0
 
-        key_moments = [h for h in self.history if h.get('confidence', 1.0) < 0.3]
+        recent_history = self.history[-10:]
         lessons = 0
 
-        for moment in key_moments[:5]:
-            obs_m = moment['obs']
-            action_m = moment['action']
+        for moment in recent_history:
+            obs_m = moment.get('obs')
+            action_m = moment.get('action')
+            if obs_m is None or action_m is None:
+                continue
+
             for alt_action in range(self.action_count):
                 if alt_action == action_m:
                     continue
-                sim_neuron = ShortTermNeuron(obs_m, alt_action, result_flag=0.3)
+                sim_neuron = ShortTermNeuron(obs_m, alt_action, result_flag=0.1)
                 if self.active_cluster:
                     self.active_cluster.add_neuron(sim_neuron)
                     lessons += 1
 
-        self.stats['lessons'] += lessons
+        self.stats['lessons'] = self.stats.get('lessons', 0) + lessons
         return lessons
 
     def _decay_on_reset(self):
