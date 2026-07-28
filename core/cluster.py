@@ -7,7 +7,11 @@ import time
 from collections import defaultdict
 from core.neuron import Neuron
 from config import NEUTRAL_THRESHOLD, COMPRESSION_SIMILARITY
+from core.gpu_accelerator import GpuMatrixAccelerator
+from core.auto_compressor import AutoMemoryCompressor
 
+gpu_accelerator = GpuMatrixAccelerator()
+auto_compressor = AutoMemoryCompressor()
 
 class MemoryCluster:
     """Кластер памяти для определённого домена (типа мира)"""
