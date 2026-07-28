@@ -31,12 +31,20 @@ class Neuron:
         self.created_at = timestamp if timestamp else time.time()
         self.age = 0
         self.lifetime = NEURON_LIFETIME  # сколько живет
+        self.next_associations = {}  # id_следующего_нейрона -> вес связи (последовательные ассоциации)
 
         # Позиция для визуализации
         Neuron._positions[self.id] = (
             random.randint(50, NEURON_VIS_WIDTH - 50),
             random.randint(50, NEURON_VIS_HEIGHT - 50)
         )
+
+    def add_next_association(self, next_neuron_id, amount=0.1):
+        """Добавить/усилить последовательную ассоциативную связь с нейроном следующего шага"""
+        if next_neuron_id == self.id:
+            return
+        curr = self.next_associations.get(next_neuron_id, 0.0)
+        self.next_associations[next_neuron_id] = min(1.0, curr + amount)
 
     def strengthen(self, new_flag=None, timestamp=None):
         """Усиление при повторении"""

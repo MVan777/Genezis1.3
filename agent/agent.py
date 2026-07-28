@@ -26,6 +26,7 @@ class Agent:
         self.active_cluster = None
         self.last_state = None
         self.last_action = None
+        self.last_neuron = None
         self.last_similar_neurons = []
         self.used_clusters = set()
 
@@ -50,6 +51,18 @@ class Agent:
         self.last_consolidation_check = time.time()
         self.consolidation_frequency = 10
         self.games_since_consolidation = 0
+
+    def _find_neuron_by_id(self, neuron_id):
+        """Быстрый поиск нейрона по ID для предвосхищения"""
+        if self.active_cluster:
+            for n in self.active_cluster.neurons:
+                if n.id == neuron_id:
+                    return n
+        for cluster in self.router.clusters:
+            for n in cluster.neurons:
+                if n.id == neuron_id:
+                    return n
+        return None
 
     def act(self, state, explore=True):
         """Выбрать действие"""
@@ -103,7 +116,7 @@ class Agent:
         return results
 
     def _vote(self, similar_neurons):
-        """Взвешенное голосование с учётом типа памяти"""
+        """Взвешенное голосование с учётом предвосхищения (Lookahead)"""
         if not similar_neurons:
             return None, 0
 
@@ -117,7 +130,16 @@ class Agent:
             # Долгосрочные нейроны имеют больший вес
             type_weight = 1.5 if hasattr(neuron, 'confidence') else 1.0
 
-            vote = sim * cluster_weight * neuron.flag * neuron.strength * type_weight
+            # Ассоциативное Предвосхищение (1-step Lookahead по следующему шагу)
+            lookahead_bonus = 0.0
+            if hasattr(neuron, 'next_associations') and neuron.next_associations:
+                for next_id, w_next in neuron.next_associations.items():
+                    next_n = self._find_neuron_by_id(next_id)
+                    if next_n:
+                        lookahead_bonus += 0.3 * w_next * next_n.flag * next_n.strength
+
+            effective_flag = neuron.flag + lookahead_bonus
+            vote = sim * cluster_weight * effective_flag * neuron.strength * type_weight
             action_votes[neuron.action] += vote
 
         best_action = max(action_votes.items(), key=lambda x: x[1])
@@ -141,6 +163,12 @@ class Agent:
         from core.neurons import ShortTermNeuron
         new_neuron = ShortTermNeuron(self.last_state, self.last_action, flag)
         self.active_cluster.add_neuron(new_neuron)
+
+        # ===== ПОСЛЕДОВАТЕЛЬНЫЕ ВРЕМЕННЫЕ АССОЦИАЦИИ (N_{t-1} -> N_t) =====
+        if self.last_neuron is not None and hasattr(self.last_neuron, 'add_next_association'):
+            self.last_neuron.add_next_association(new_neuron.id, amount=0.2)
+        self.last_neuron = new_neuron
+        # =================================================================
 
         # ===== УСИЛЕНИЕ СВЯЗЕЙ С ПОХОЖИМИ НЕЙРОНАМИ =====
         similar = self.active_cluster.find_similar(self.last_state, threshold=0.5, max_results=5)
@@ -414,6 +442,7 @@ class Agent:
         """Новая игра"""
         self.last_state = None
         self.last_action = None
+        self.last_neuron = None
         self.game_history = []
         self.used_clusters = set()
         if self.stats['games'] % 5 == 0:  # каждые 5 игр

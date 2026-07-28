@@ -76,22 +76,47 @@ class MemoryConsolidator:
         return consolidated
 
     def _consolidate_neuron(self, short_term_neuron):
-        """Перенести один нейрон в долгосрочную память"""
-        # Создаём долгосрочный нейрон-копию
-        long_term = LongTermNeuron(
-            short_term_neuron.situation,
-            short_term_neuron.action,
-            short_term_neuron.flag,
-            source_id=short_term_neuron.id
-        )
+        """Перенести один нейрон в долгосрочную память (или объединить в концептуальный нейрон-прототип)"""
+        similar = self.long_term.find_similar(short_term_neuron.situation, threshold=0.7, max_results=5)
+        matched_lt = None
+        for idx, sim, lt_neuron in similar:
+            if lt_neuron.action == short_term_neuron.action:
+                matched_lt = lt_neuron
+                break
 
-        # Копируем важные атрибуты
-        long_term.strength = short_term_neuron.strength
-        long_term.usage_count = short_term_neuron.usage_count
-        long_term.confidence = min(1.0, short_term_neuron.importance)
+        if matched_lt:
+            # Объединяем в обобщенный концептуальный нейрон-прототип
+            if hasattr(matched_lt, 'merge'):
+                matched_lt.merge(short_term_neuron)
+            else:
+                matched_lt.strength += 0.2
+                matched_lt.usage_count += short_term_neuron.usage_count
+                matched_lt.flag = 0.8 * matched_lt.flag + 0.2 * short_term_neuron.flag
+            if hasattr(matched_lt, 'confidence'):
+                matched_lt.confidence = min(1.0, matched_lt.confidence + 0.1)
 
-        # Добавляем в долгосрочный кластер
-        self.long_term.add_neuron(long_term)
+            if hasattr(short_term_neuron, 'next_associations'):
+                for next_id, w in short_term_neuron.next_associations.items():
+                    matched_lt.add_next_association(next_id, w)
+        else:
+            # Создаём долгосрочный нейрон-копию
+            long_term = LongTermNeuron(
+                short_term_neuron.situation,
+                short_term_neuron.action,
+                short_term_neuron.flag,
+                source_id=short_term_neuron.id
+            )
+
+            # Копируем важные атрибуты
+            long_term.strength = short_term_neuron.strength
+            long_term.usage_count = short_term_neuron.usage_count
+            long_term.confidence = min(1.0, getattr(short_term_neuron, 'importance', 0.5))
+
+            if hasattr(short_term_neuron, 'next_associations'):
+                long_term.next_associations = dict(short_term_neuron.next_associations)
+
+            # Добавляем в долгосрочный кластер
+            self.long_term.add_neuron(long_term)
 
         # Удаляем из краткосрочного
         self.short_term.remove_neuron(short_term_neuron.id)

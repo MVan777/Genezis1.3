@@ -67,6 +67,7 @@ class Game:
         self.last_regen_check = 0
         self.last_elixir_step = 0
         self.last_drought_cycles = 0
+        self.last_actions = [0.0, 0.0]
 
         # Размещаем начальные элементы
         self._place_elements()
@@ -123,8 +124,22 @@ class Game:
             for _ in range(REGEN_ANTIDOTE):
                 self._place_random(ANTIDOTE)
 
+    def _find_nearest_item(self, item_type):
+        """Найти направление и расстояние до ближайшего предмета определенного типа"""
+        positions = np.argwhere(self.grid == item_type)
+        if len(positions) == 0:
+            return 0.0, 0.0, 1.0
+        px, py = self.player_pos
+        dists = np.abs(positions[:, 0] - px) + np.abs(positions[:, 1] - py)
+        min_idx = np.argmin(dists)
+        target_x, target_y = positions[min_idx]
+        dx = (target_x - px) / float(GRID_SIZE)
+        dy = (target_y - py) / float(GRID_SIZE)
+        dist_norm = float(dists[min_idx]) / float(GRID_SIZE * 2)
+        return float(dx), float(dy), float(dist_norm)
+
     def _get_state(self):
-        """Состояние для ИИ с информацией о безопасной зоне"""
+        """Состояние для ИИ с информацией о веторах направления и сенсорах"""
         health_norm = self.health / BASE_MAX_HEALTH
         antidote_norm = self.antidote_effect / ANTIDOTE_DURATION
 
@@ -139,9 +154,19 @@ class Game:
         sensors = self._get_sensor_data()
 
         # Информация о враге
-        enemy_dx = (self.enemy.x - self.player_pos[0]) / GRID_SIZE if self.enemy.alive else 0
-        enemy_dy = (self.enemy.y - self.player_pos[1]) / GRID_SIZE if self.enemy.alive else 0
-        enemy_near = 1.0 if (self.enemy.alive and abs(enemy_dx) <= 1 and abs(enemy_dy) <= 1) else 0.0
+        enemy_dx = (self.enemy.x - self.player_pos[0]) / float(GRID_SIZE) if self.enemy.alive else 0.0
+        enemy_dy = (self.enemy.y - self.player_pos[1]) / float(GRID_SIZE) if self.enemy.alive else 0.0
+        enemy_dist = (abs(self.enemy.x - self.player_pos[0]) + abs(self.enemy.y - self.player_pos[1])) / float(GRID_SIZE * 2) if self.enemy.alive else 1.0
+        enemy_near = 1.0 if (self.enemy.alive and abs(enemy_dx * GRID_SIZE) <= 1 and abs(enemy_dy * GRID_SIZE) <= 1) else 0.0
+
+        # Относительные направления до объектов
+        elixir_vec = self._find_nearest_item(ELIXIR)
+        poison_vec = self._find_nearest_item(POISON)
+        weapon_vec = self._find_nearest_item(WEAPON)
+        enemy_vec = (enemy_dx, enemy_dy, enemy_dist)
+
+        # Буфер инерции действий
+        action_history = self.last_actions if hasattr(self, 'last_actions') else [0.0, 0.0]
 
         # Оружие
         weapon_status = self.weapon_uses / WEAPON_USES
@@ -149,7 +174,9 @@ class Game:
         steps_since_elixir = self.step_count - self.last_elixir_step
         drought_norm = min(1.0, steps_since_elixir / 50)
 
-        state = [health_norm, antidote_norm, drought_norm, enemy_near, weapon_status, safe_zone_norm] + sensors
+        dir_features = list(elixir_vec) + list(poison_vec) + list(weapon_vec) + list(enemy_vec) + list(action_history)
+
+        state = [health_norm, antidote_norm, drought_norm, enemy_near, weapon_status, safe_zone_norm] + dir_features + sensors
         return np.array(state, dtype=np.float32)
 
     def step(self, action):
@@ -158,6 +185,9 @@ class Game:
             return self._get_state(), 0, self.health, False, "dead"
 
         old_pos = self.player_pos.copy()
+        if not hasattr(self, 'last_actions'):
+            self.last_actions = [0.0, 0.0]
+        self.last_actions = [self.last_actions[1], action / float(ACTION_COUNT)]
         event = "none"
         reward = 0
 

@@ -68,34 +68,59 @@ class MemoryCluster:
         return True
 
     def find_similar(self, situation, threshold=0.5, max_results=20):
-        """Найти похожие нейроны в кластере"""
+        """Найти похожие нейроны в кластере с векторизацией NumPy"""
         if not self.neurons:
             return []
 
         situation = np.array(situation, dtype=np.float32)
-        similarities = []
+        sit_norm = np.linalg.norm(situation)
+        if sit_norm == 0:
+            return []
 
+        sit_len = len(situation)
+        curr_time = time.time()
+
+        # Быстрая матричная векторизация для совпадения длин ситуаций
+        if all(len(n.situation) == sit_len for n in self.neurons):
+            matrix = np.array([n.situation for n in self.neurons], dtype=np.float32)
+            norms = np.linalg.norm(matrix, axis=1)
+            norms[norms == 0] = 1e-8
+
+            dots = np.dot(matrix, situation)
+            sims = dots / (norms * sit_norm)
+
+            results = []
+            for i, (sim, neuron) in enumerate(zip(sims, self.neurons)):
+                age_factor = max(0.5, 1.0 - (curr_time - neuron.last_used) / 10000)
+                final_sim = float(sim * neuron.strength * age_factor)
+                if final_sim > threshold:
+                    results.append((i, final_sim, neuron))
+            results.sort(key=lambda x: x[1], reverse=True)
+            return results[:max_results]
+
+        # Поэлементный fallback для разной длины векторов
+        similarities = []
         for i, neuron in enumerate(self.neurons):
             neuron_sit = neuron.situation
-            min_len = min(len(situation), len(neuron_sit))
+            min_len = min(sit_len, len(neuron_sit))
             sit_trim = situation[:min_len]
             neu_trim = neuron_sit[:min_len]
 
-            sit_norm = np.linalg.norm(sit_trim)
-            neu_norm = np.linalg.norm(neu_trim)
+            sn = np.linalg.norm(sit_trim)
+            nn = np.linalg.norm(neu_trim)
 
-            if sit_norm == 0 or neu_norm == 0:
-                sim = 0
+            if sn == 0 or nn == 0:
+                sim = 0.0
             else:
-                sim = np.dot(sit_trim, neu_trim) / (sit_norm * neu_norm)
+                sim = float(np.dot(sit_trim, neu_trim) / (sn * nn))
 
-            age_factor = max(0.5, 1.0 - (time.time() - neuron.last_used) / 10000)
-            sim = sim * neuron.strength * age_factor
-
-            similarities.append((i, sim, neuron))
+            age_factor = max(0.5, 1.0 - (curr_time - neuron.last_used) / 10000)
+            final_sim = sim * neuron.strength * age_factor
+            if final_sim > threshold:
+                similarities.append((i, final_sim, neuron))
 
         similarities.sort(key=lambda x: x[1], reverse=True)
-        return [(i, sim, n) for i, sim, n in similarities if sim > threshold][:max_results]
+        return similarities[:max_results]
 
     def cleanup(self):
         """Очистка нейтральных и слабых нейронов"""
