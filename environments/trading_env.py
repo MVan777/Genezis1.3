@@ -7,6 +7,7 @@
 import numpy as np
 import random
 import datetime
+import time
 from environments.data_loader import HistoricalDataLoader, NewsCalendar
 from environments.live_market_stream import BinanceLiveStream
 
