@@ -159,7 +159,7 @@ class TradingVisualizer:
 
         if done:
             self.brain.reset_episode()
-            self.obs = self.env.reset()
+            self.obs = self.env.reset(preserve_step=True)
             self.signals_history = []
 
     def _draw(self):

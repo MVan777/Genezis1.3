@@ -72,9 +72,10 @@ class TradingEnv:
             return True
         return False
 
-    def reset(self):
-        """Сброс состояния торговли на начало графика"""
-        self.current_step = 30  # Начинаем после накопительного окна индикаторов
+    def reset(self, preserve_step=False):
+        """Сброс состояния торговли на начало графика (или сохранение текущего шага при preserve_step=True)"""
+        if not preserve_step:
+            self.current_step = 30  # Начинаем после накопительного окна индикаторов
         self.balance = self.initial_balance
         self.position = 0  # 0: FLAT, 1: LONG, -1: SHORT
         self.entry_price = 0.0
@@ -227,8 +228,20 @@ class TradingEnv:
         if not self.active_options:
             self.position = 0
 
+        # Если баланс упал ниже $300 (ликвидация): пополняем депозит и наказываем ИИ без сброса назад!
+        if self.balance <= self.initial_balance * 0.3:
+            reward -= 20.0
+            self.balance = self.initial_balance
+            trade_event = "liquidation_penalty_refill"
+
         self.pnl_history.append(self.balance)
-        done = (self.current_step >= len(self.prices) - 2 or self.balance <= self.initial_balance * 0.3)
+
+        # Непрерывность движения: закольцовываем массив при достижении конца без прыжков в ноль
+        if self.current_step >= len(self.prices) - 2:
+            self.current_step = 30
+            done = True
+        else:
+            done = False
 
         news_info = self.news_calendar.get_news_at_step(self.current_step)
 
