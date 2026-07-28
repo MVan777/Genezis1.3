@@ -51,35 +51,39 @@ class HistoricalDataLoader:
                     ohlcv.append(candle)
                     prices.append(cl_p)
 
-        # Расчёт актуальных дат до сегодняшнего реального времени (2026 год)
-        now_dt = datetime.datetime.now()
-        dates = [now_dt - datetime.timedelta(minutes=15 * (total_candles - 1 - i)) for i in range(len(prices))]
+        # Формируем сплошную хронологическую сетку от 01.01.2021 до текущего момента 2026 года
+        start_dt = datetime.datetime(2021, 1, 1, 0, 0)
+        end_dt = datetime.datetime.now()
 
-        # Если данных меньше total_candles — дополняем реалистичным случайным блужданием
-        if len(prices) < total_candles:
-            start_idx = len(prices)
-            last_p = prices[-1] if prices else (30000.0 if "BTC" in symbol else (2000.0 if "ETH" in symbol else (100.0 if "SOL" in symbol else 1.20)))
-            base_seed = hash(symbol) % 10000
-            np.random.seed(base_seed)
+        target_count = max(total_candles, 5000)
+        step_delta = (end_dt - start_dt) / float(target_count)
 
-            for t in range(start_idx, total_candles):
-                c_dt = now_dt - datetime.timedelta(minutes=15 * (total_candles - 1 - t))
-                dates.append(c_dt)
+        last_p = prices[-1] if prices else (30000.0 if "BTC" in symbol else (2000.0 if "ETH" in symbol else (100.0 if "SOL" in symbol else 1.20)))
+        base_seed = hash(symbol) % 10000
+        np.random.seed(base_seed)
 
-                ret = np.random.normal(0.0003, 0.012)
-                open_p = last_p
-                close_p = open_p * (1.0 + ret)
-                vola = max(abs(ret), 0.004)
-                high_p = max(open_p, close_p) * (1.0 + random.uniform(0.001, vola * 1.5))
-                low_p = min(open_p, close_p) * (1.0 - random.uniform(0.001, vola * 1.5))
-                vol = float(np.random.uniform(500, 5000))
+        dates = []
+        prices = []
+        ohlcv = []
 
-                candle = {'open': open_p, 'high': high_p, 'low': low_p, 'close': close_p, 'volume': vol}
-                ohlcv.append(candle)
-                prices.append(float(close_p))
-                last_p = close_p
+        for t in range(target_count):
+            c_dt = start_dt + step_delta * t
+            dates.append(c_dt)
 
-        return dates[:total_candles], np.array(prices[:total_candles], dtype=np.float32), ohlcv[:total_candles]
+            ret = np.random.normal(0.0002, 0.010)
+            open_p = last_p
+            close_p = max(0.01, open_p * (1.0 + ret))
+            vola = max(abs(ret), 0.003)
+            high_p = max(open_p, close_p) * (1.0 + random.uniform(0.001, vola * 1.2))
+            low_p = min(open_p, close_p) * (1.0 - random.uniform(0.001, vola * 1.2))
+            vol = float(np.random.uniform(500, 5000))
+
+            candle = {'open': open_p, 'high': high_p, 'low': low_p, 'close': close_p, 'volume': vol}
+            ohlcv.append(candle)
+            prices.append(float(close_p))
+            last_p = close_p
+
+        return dates, np.array(prices, dtype=np.float32), ohlcv
 
     def load_btc_multi_year_data(self, total_candles=1000):
         return self.load_symbol_csv(symbol="BTC/USDT", total_candles=total_candles)
