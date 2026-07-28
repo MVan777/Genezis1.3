@@ -140,6 +140,7 @@ class TradingVisualizer:
         if self.env.mode == "live":
             self.env.update_live_tick()
 
+        probs = self.brain.predict_action_probabilities(self.obs)
         action = self.brain.act(self.obs, explore=True)
         next_obs, reward, done, info = self.env.step(action)
         self.brain.learn(reward, next_obs, done)
@@ -147,6 +148,7 @@ class TradingVisualizer:
         if action != self.last_action and action != 0:
             self.signals_history.append((self.env.current_step, self.env.prices[self.env.current_step - 1], action))
 
+        info['probs'] = probs
         self.last_action = action
         self.last_info = info
         self.obs = next_obs
@@ -409,28 +411,42 @@ class TradingVisualizer:
 
         curr_y += 135
 
-        # 4. Состояние Новостного Фона & Стратегия ИИ (Strategy & Market Regime)
+        # 4. Состояние Новостного Фона & Шкала Вероятностей ИИ (Live Neural Probabilities Gauge)
+        probs = self.last_info.get('probs', {0: 50.0, 1: 25.0, 2: 25.0})
+        p_buy = probs.get(1, 0.0)
+        p_sell = probs.get(2, 0.0)
+        p_hold = probs.get(0, 0.0)
+
         regime_lbl = self.last_info.get('market_regime_label', '↔️ КОНСОЛИДАЦИЯ / ФЛЭТ')
         ai_strat = self.last_info.get('ai_strategy', 'Mean Reversion (Отбой от границ)')
 
-        news_info = self.last_info.get('news_info', {'active': False, 'headline': 'Фон нейтральный', 'sentiment': 0.0})
-        is_news_active = news_info.get('active', False)
-        sent_val = news_info.get('sentiment', 0.0)
-        sent_str = "БЫЧИЙ (+)" if sent_val > 0.1 else ("МЕДВЕЖИЙ (-)" if sent_val < -0.1 else "НЕЙТРАЛЬНЫЙ")
-        sent_color = self.GREEN_BULL if sent_val > 0.1 else (self.RED_BEAR if sent_val < -0.1 else self.MUTED_TEXT)
-
-        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 115), border_radius=6)
-        lbl_st_title = self.font_small.render("ЛОГИКА И СТРАТЕГИЯ ИИ:", True, self.YELLOW_RSI)
+        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 135), border_radius=6)
+        lbl_st_title = self.font_small.render("ЖИВЫЕ ВЕРОЯТНОСТИ & СТРАТЕГИЯ ИИ:", True, self.YELLOW_RSI)
         t_reg = self.font_bold.render(f"Фаза рынка: {regime_lbl}", True, self.TEXT_COLOR)
         t_str = self.font_small.render(f"Логика: {ai_strat}", True, self.BLUE_ACCENT)
-        t_sent = self.font_small.render(f"Новостной сентимент: {sent_str}", True, sent_color)
+        t_probs = self.font_small.render(f"Мнение: CALL {p_buy:.1f}% | PUT {p_sell:.1f}% | HOLD {p_hold:.1f}%", True, self.TEXT_COLOR)
+
+        # Визуальная шкала (Gauge Bar)
+        bar_w = float(w - 50)
+        bar_h = 10.0
+        bar_x = float(x + 25)
+        bar_y = float(curr_y + 112)
+
+        pygame.draw.rect(self.screen, (40, 50, 65), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+        w_buy = float(bar_w * (p_buy / 100.0))
+        w_sell = float(bar_w * (p_sell / 100.0))
+
+        if w_buy > 0:
+            pygame.draw.rect(self.screen, self.GREEN_BULL, (bar_x, bar_y, w_buy, bar_h), border_top_left_radius=3, border_bottom_left_radius=3)
+        if w_sell > 0:
+            pygame.draw.rect(self.screen, self.RED_BEAR, (bar_x + bar_w - w_sell, bar_y, w_sell, bar_h), border_top_right_radius=3, border_bottom_right_radius=3)
 
         self.screen.blit(lbl_st_title, (x + 25, curr_y + 8))
         self.screen.blit(t_reg, (x + 25, curr_y + 28))
         self.screen.blit(t_str, (x + 25, curr_y + 50))
-        self.screen.blit(t_sent, (x + 25, curr_y + 72))
+        self.screen.blit(t_probs, (x + 25, curr_y + 72))
 
-        curr_y += 130
+        curr_y += 150
 
         # 5. Карточка Состояния Мозга ИИ
         total_n = sum(len(c.neurons) for c in self.brain.router.clusters)

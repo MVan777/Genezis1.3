@@ -153,6 +153,40 @@ class UniversalAssociativeBrain:
                     results.append((n, sim, 0.5))
         return results
 
+    def predict_action_probabilities(self, raw_observation):
+        """
+        Рассчитать процентные вероятности ИИ для каждого действия (HOLD, BUY, SELL)
+        """
+        self._ensure_attributes()
+        obs = self.normalizer.normalize(raw_observation)
+        self.active_cluster = self.router.select_cluster(obs)
+        similar = self._find_similar(obs)
+
+        if not similar:
+            return {0: 50.0, 1: 25.0, 2: 25.0}
+
+        votes = defaultdict(float)
+        for neuron, sim, weight in similar:
+            type_weight = 1.5 if hasattr(neuron, 'confidence') else 1.0
+            eff_flag = max(0.1, neuron.flag + 1.0)
+            votes[neuron.action] += sim * weight * eff_flag * neuron.strength * type_weight
+
+        total_v = sum(votes.values())
+        if total_v <= 0:
+            return {0: 50.0, 1: 25.0, 2: 25.0}
+
+        p_hold = (votes.get(0, 0.0) / total_v) * 100.0
+        p_buy = (votes.get(1, 0.0) / total_v) * 100.0
+        p_sell = (votes.get(2, 0.0) / total_v) * 100.0
+
+        tot_p = p_hold + p_buy + p_sell
+        if tot_p > 0:
+            p_hold = (p_hold / tot_p) * 100.0
+            p_buy = (p_buy / tot_p) * 100.0
+            p_sell = (p_sell / tot_p) * 100.0
+
+        return {0: round(p_hold, 1), 1: round(p_buy, 1), 2: round(p_sell, 1)}
+
     def _vote(self, similar_neurons):
         """Взвешенное голосование с глубоким 5-шаговым моделированием по графу памяти"""
         if not similar_neurons:
