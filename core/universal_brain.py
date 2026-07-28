@@ -14,9 +14,13 @@ from core.neurons import ShortTermNeuron, LongTermNeuron
 from core.meta_sensor import MetaSensorNormalizer
 from core.goal_system import MacroGoalSystem
 from core.spatial_memory import SpatialMentalMap
+from core.sequence_chaining import StrategicSequenceChainer
+from core.mental_simulator import DeepMentalGraphSimulator
+from core.meta_adapter import MetaLearningAdapter
+from core.cross_transfer import CrossDomainTransfer
 
 class UniversalAssociativeBrain:
-    """Универсальный Ассоциативный Мозг ИИ с единым стандартом act() / learn()"""
+    """Универсальный Ассоциативный Мозг ИИ (Genezis 2.0) с единым стандартом act() / learn()"""
 
     def __init__(self, action_count=5, router=None):
         self.action_count = action_count
@@ -25,6 +29,13 @@ class UniversalAssociativeBrain:
         self.goal_system = MacroGoalSystem()
         self.spatial_map = SpatialMentalMap()
 
+        # Фаза 4: Мета-Ассоциативные Модули Высшего Порядка
+        self.chainer = StrategicSequenceChainer()
+        self.deep_simulator = DeepMentalGraphSimulator()
+        self.meta_adapter = MetaLearningAdapter()
+        self.cross_transfer = CrossDomainTransfer()
+
+        self.reward_history = []
         self.active_cluster = None
         self.last_obs = None
         self.last_action = None
@@ -99,27 +110,23 @@ class UniversalAssociativeBrain:
         return results
 
     def _vote(self, similar_neurons):
-        """Взвешенное голосование с многошаговым предвосхищением (2-step Lookahead)"""
+        """Взвешенное голосование с глубоким 5-шаговым моделированием по графу памяти"""
         if not similar_neurons:
             return None, 0.0
 
         votes = defaultdict(float)
+
+        # Фаза 4: 5-шаговая глубокая волновое моделирование будущего по графу
+        future_scores = self.deep_simulator.evaluate_future_branches(similar_neurons, self)
 
         for neuron, sim, weight in similar_neurons:
             if hasattr(neuron, 'access'):
                 neuron.access()
 
             type_weight = 1.5 if hasattr(neuron, 'confidence') else 1.0
+            future_bonus = future_scores.get(neuron.action, 0.0)
 
-            # 2-step Spreading Activation Lookahead
-            lookahead_bonus = 0.0
-            if hasattr(neuron, 'next_associations') and neuron.next_associations:
-                for next_id, w_next in neuron.next_associations.items():
-                    next_n = self._find_neuron_by_id(next_id)
-                    if next_n:
-                        lookahead_bonus += 0.3 * w_next * next_n.flag * next_n.strength
-
-            eff_flag = neuron.flag + lookahead_bonus
+            eff_flag = neuron.flag + 0.4 * future_bonus
             votes[neuron.action] += sim * weight * eff_flag * neuron.strength * type_weight
 
         if not votes:
