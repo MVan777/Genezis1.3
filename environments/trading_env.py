@@ -8,33 +8,65 @@ import numpy as np
 import random
 import datetime
 from environments.data_loader import HistoricalDataLoader, NewsCalendar
+from environments.live_market_stream import BinanceLiveStream
 
 class TradingEnv:
-    """Биржевое окружение для обучения и бэктестинга Ассоциативного ИИ с двойным анализом"""
+    """Биржевое окружение для обучения и бэктестинга Ассоциативного ИИ с поддержкой живого рынка"""
 
     def __init__(self, df_prices=None, initial_balance=1000.0, fee_pct=0.0005):
         self.initial_balance = initial_balance
         self.fee_pct = fee_pct  # 0.05% комиссия за сделку (стандарт Binance/Bybit)
 
         self.loader = HistoricalDataLoader()
+        self.live_stream = BinanceLiveStream()
+        self.mode = "sim"  # "sim": Обучение/Бэктест, "live": Живой Рынок Binance в реальном времени
         self.active_symbol = "BTC/USDT"
+
         if df_prices is not None and len(df_prices) > 50:
             self.prices = np.array(df_prices, dtype=np.float32)
             self.dates = [datetime.datetime.now() for _ in range(len(self.prices))]
             self.ohlcv = [{'open': float(p), 'high': float(p*1.005), 'low': float(p*0.995), 'close': float(p), 'volume': 1000.0} for p in self.prices]
         else:
-            # Загружаем реалистичные многолетние свечи по выбранному тикеру
+            # Загружаем свечи по выбранному тикеру
             self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=self.active_symbol, total_candles=1000)
 
         # Подключаем макроэкономический новостной календарь с датами и временем
         self.news_calendar = NewsCalendar(total_steps=len(self.prices))
         self.reset()
 
+    def set_mode(self, mode_name):
+        """Переключить режим работы: 'sim' (Обучение/Бэктест) или 'live' (Живой рынок Binance)"""
+        if mode_name in ("sim", "live"):
+            self.mode = mode_name
+            if self.mode == "live":
+                ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=100)
+                if lprices and len(lprices) > 30:
+                    self.dates, self.prices, self.ohlcv = ldates, np.array(lprices, dtype=np.float32), lohlcv
+            self.reset()
+            return True
+        return False
+
+    def update_live_tick(self):
+        """Обновить свечи с живого рынка Binance при работе в режиме 'live'"""
+        if self.mode == "live":
+            ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=100)
+            if lprices and len(lprices) > 30:
+                self.dates, self.prices, self.ohlcv = ldates, np.array(lprices, dtype=np.float32), lohlcv
+                self.current_step = min(self.current_step, len(self.prices) - 1)
+
     def change_symbol(self, symbol_name):
         """Смена активной торговой пары (BTC/USDT, ETH/USDT, SOL/USDT, EUR/USD)"""
         if symbol_name in ("BTC/USDT", "ETH/USDT", "SOL/USDT", "EUR/USD"):
             self.active_symbol = symbol_name
-            self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=symbol_name, total_candles=1000)
+            if self.mode == "live":
+                ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=100)
+                if lprices and len(lprices) > 30:
+                    self.dates, self.prices, self.ohlcv = ldates, np.array(lprices, dtype=np.float32), lohlcv
+                else:
+                    self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=symbol_name, total_candles=1000)
+            else:
+                self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=symbol_name, total_candles=1000)
+
             self.news_calendar = NewsCalendar(total_steps=len(self.prices))
             self.reset()
             return True
@@ -237,6 +269,7 @@ class TradingEnv:
             'market_regime_label': regime_label,
             'ai_strategy': strategy,
             'active_symbol': self.active_symbol,
+            'mode': self.mode,
             'event': trade_event
         }
 

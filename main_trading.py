@@ -113,6 +113,11 @@ class TradingVisualizer:
                     self.env.set_expiry_steps(30)
                 elif event.key == pygame.K_4:
                     self.env.set_expiry_steps(60)
+                elif event.key == pygame.K_m:
+                    new_m = "live" if self.env.mode == "sim" else "sim"
+                    self.env.set_mode(new_m)
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
                 elif event.key == pygame.K_b:
                     self.env.change_symbol("BTC/USDT")
                     self.signals_history = []
@@ -132,6 +137,9 @@ class TradingVisualizer:
 
     def _update_step(self):
         """Выполнение одного шага торговли"""
+        if self.env.mode == "live":
+            self.env.update_live_tick()
+
         action = self.brain.act(self.obs, explore=True)
         next_obs, reward, done, info = self.env.step(action)
         self.brain.learn(reward, next_obs, done)
@@ -173,15 +181,15 @@ class TradingVisualizer:
         pygame.draw.line(self.screen, self.PANEL_BORDER, (0, 45), (self.width, 45), 2)
 
         sym = self.last_info.get('active_symbol', 'BTC/USDT')
-        title = self.font_title.render(f"📈 GENEZIS 2.0 TRADING AI [{sym}]", True, self.BLUE_ACCENT)
+        mode = self.last_info.get('mode', 'sim')
+        mode_str = "[LIVE BINANCE]" if mode == "live" else "[SIMULATION]"
+        mode_color = self.GREEN_BULL if mode == "live" else self.BLUE_ACCENT
+
+        title = self.font_title.render(f"📈 GENEZIS 2.0 TRADING AI {mode_str} [{sym}]", True, mode_color)
         self.screen.blit(title, (20, 10))
 
-        status_str = "⏸️ ПАУЗА" if self.paused else f"⚡ СКОРОСТЬ: {self.speed} FPS"
-        status = self.font_bold.render(status_str, True, self.YELLOW_RSI if self.paused else self.GREEN_BULL)
-        self.screen.blit(status, (430, 12))
-
-        controls = self.font_small.render("[B,E,S,X: Пары BTC/ETH/SOL/EUR | 1-4: Экспирация]", True, self.MUTED_TEXT)
-        self.screen.blit(controls, (self.width - 340, 15))
+        controls = self.font_small.render("[M: Режим SIM/LIVE | B,E,S,X: Пары | 1-4: Экспирация | ПРОБЕЛ: Пауза]", True, self.MUTED_TEXT)
+        self.screen.blit(controls, (self.width - 430, 15))
 
     def _draw_price_chart(self, x, y, w, h):
         """Отрисовка главного свечного графика цен"""
