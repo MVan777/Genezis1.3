@@ -20,9 +20,10 @@ class TradingEnv:
         if df_prices is not None and len(df_prices) > 50:
             self.prices = np.array(df_prices, dtype=np.float32)
             self.dates = [datetime.datetime.now() for _ in range(len(self.prices))]
+            self.ohlcv = [{'open': float(p), 'high': float(p*1.005), 'low': float(p*0.995), 'close': float(p), 'volume': 1000.0} for p in self.prices]
         else:
-            # Загружаем реалистичные многолетние свечи BTC/USDT от $5k до $70k
-            self.dates, self.prices, self.volumes = self.loader.load_btc_multi_year_data(total_candles=1000)
+            # Загружаем реалистичные многолетние свечи BTC/USDT с OHLCV данными
+            self.dates, self.prices, self.ohlcv = self.loader.load_btc_multi_year_data(total_candles=1000)
 
         # Подключаем макроэкономический новостной календарь с датами и временем
         self.news_calendar = NewsCalendar(total_steps=len(self.prices))
@@ -188,6 +189,28 @@ class TradingEnv:
 
         news_info = self.news_calendar.get_news_at_step(self.current_step)
 
+        # Определение фазового состояния рынка (Market Regime & Strategy Reasoning)
+        curr_p = self.prices[self.current_step]
+        prev_15_p = self.prices[max(0, self.current_step - 15)]
+        ret_15 = (curr_p - prev_15_p) / prev_15_p if prev_15_p > 0 else 0.0
+
+        if news_info.get('active', False):
+            regime = "NEWS_SPIKE"
+            regime_label = "⚡ ИМПУЛЬС НОВОСТЕЙ"
+            strategy = "News Momentum (Реакция на новости)"
+        elif ret_15 > 0.025:
+            regime = "TREND_UP"
+            regime_label = "📈 БЫЧИЙ ТРЕНД"
+            strategy = "Trend Following (Следование тренду)"
+        elif ret_15 < -0.025:
+            regime = "TREND_DOWN"
+            regime_label = "📉 МЕДВЕЖИЙ ТРЕНД"
+            strategy = "Trend Following (Следование тренду)"
+        else:
+            regime = "FLAT_CONSOLIDATION"
+            regime_label = "↔️ КОНСОЛИДАЦИЯ / ФЛЭТ"
+            strategy = "Mean Reversion (Отбой от границ)"
+
         info = {
             'balance': self.balance,
             'position': self.position,
@@ -199,6 +222,9 @@ class TradingEnv:
             'last_expired': last_expired_info,
             'news_info': news_info,
             'current_date': self.dates[self.current_step].strftime("%Y-%m-%d %H:%M") if hasattr(self, 'dates') and self.current_step < len(self.dates) else "",
+            'market_regime': regime,
+            'market_regime_label': regime_label,
+            'ai_strategy': strategy,
             'event': trade_event
         }
 

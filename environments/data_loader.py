@@ -5,6 +5,7 @@
 
 import numpy as np
 import datetime
+import random
 
 class HistoricalDataLoader:
     """Загрузчик многолетних исторических свечей BTC/USDT и акций"""
@@ -14,8 +15,7 @@ class HistoricalDataLoader:
 
     def load_btc_multi_year_data(self, total_candles=1000):
         """
-        Генерация качественной многолетней истории BTC/USDT от $5,000 до $70,000+
-        Включает тренды, медвежьи рынки, бычьи ралли и новости
+        Генерация качественной многолетней истории BTC/USDT от $5,000 до $70,000+ с Японскими Свечами OHLCV
         """
         np.random.seed(100)
         start_date = datetime.datetime(2021, 1, 1, 0, 0)
@@ -23,6 +23,7 @@ class HistoricalDataLoader:
 
         price = 28000.0
         prices = []
+        ohlcv = []
         volumes = []
 
         # Симуляция реальных фаз рынка BTC
@@ -39,11 +40,27 @@ class HistoricalDataLoader:
             cycle = 0.003 * np.sin(t / 20.0)
             noise = np.random.normal(0, 0.015)
             ret = trend + cycle + noise
-            price *= (1.0 + ret)
-            prices.append(float(price))
-            volumes.append(float(np.random.uniform(500, 5000)))
 
-        return dates, np.array(prices, dtype=np.float32), np.array(volumes, dtype=np.float32)
+            open_p = price
+            close_p = price * (1.0 + ret)
+            vola = max(abs(ret), 0.005)
+            high_p = max(open_p, close_p) * (1.0 + random.uniform(0.001, vola * 1.5))
+            low_p = min(open_p, close_p) * (1.0 - random.uniform(0.001, vola * 1.5))
+            vol = float(np.random.uniform(500, 5000))
+
+            candle = {
+                'open': float(open_p),
+                'high': float(high_p),
+                'low': float(low_p),
+                'close': float(close_p),
+                'volume': vol
+            }
+            ohlcv.append(candle)
+            prices.append(float(close_p))
+            volumes.append(vol)
+            price = close_p
+
+        return dates, np.array(prices, dtype=np.float32), ohlcv
 
 
 class NewsCalendar:

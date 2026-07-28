@@ -181,11 +181,15 @@ class TradingVisualizer:
         start_idx = max(0, curr_step - window_size)
         window_prices = self.env.prices[start_idx:curr_step + 1]
 
-        if len(window_prices) < 2:
-            return
+        window_ohlc = self.env.ohlcv[start_idx:curr_step + 1] if hasattr(self.env, 'ohlcv') else []
 
-        min_p = np.min(window_prices) * 0.995
-        max_p = np.max(window_prices) * 1.005
+        if window_ohlc:
+            min_p = min([c['low'] for c in window_ohlc]) * 0.995
+            max_p = max([c['high'] for c in window_ohlc]) * 1.005
+        else:
+            min_p = np.min(window_prices) * 0.995
+            max_p = np.max(window_prices) * 1.005
+
         p_range = max(0.001, max_p - min_p)
 
         # Отрисовка фоновой сетки
@@ -193,17 +197,30 @@ class TradingVisualizer:
             grid_y = y + 40 + i * (h - 60) // 4
             pygame.draw.line(self.screen, (40, 50, 65), (x + 10, grid_y), (x + w - 10, grid_y), 1)
 
-        # Координаты линии цен
-        points = []
+        # Отрисовка Японских Свечей (High-Low тени и Open-Close тела)
         step_w = (w - 30) / float(window_size)
+        candle_w = max(3.0, step_w * 0.65)
 
-        for i, p in enumerate(window_prices):
-            px = float(x + 15 + i * step_w)
-            py = float(y + h - 20 - ((p - min_p) / p_range) * (h - 60))
-            points.append((px, py))
+        for i, c in enumerate(window_ohlc):
+            cx = float(x + 15 + i * step_w)
+            o_p, h_p, l_p, cl_p = c['open'], c['high'], c['low'], c['close']
 
-        if len(points) > 1:
-            pygame.draw.lines(self.screen, self.BLUE_ACCENT, False, points, 2)
+            hy = float(y + h - 20 - ((h_p - min_p) / p_range) * (h - 60))
+            ly = float(y + h - 20 - ((l_p - min_p) / p_range) * (h - 60))
+            oy = float(y + h - 20 - ((o_p - min_p) / p_range) * (h - 60))
+            cy = float(y + h - 20 - ((cl_p - min_p) / p_range) * (h - 60))
+
+            is_bull = (cl_p >= o_p)
+            c_color = self.GREEN_BULL if is_bull else self.RED_BEAR
+
+            # 1. Тень свечи (Wick / Shadow from High to Low)
+            pygame.draw.line(self.screen, c_color, (cx, hy), (cx, ly), 1)
+
+            # 2. Тело свечи (Body Rect from Open to Close)
+            top_y = min(oy, cy)
+            body_h = max(2.0, abs(cy - oy))
+            body_rect = pygame.Rect(cx - candle_w / 2.0, top_y, candle_w, body_h)
+            pygame.draw.rect(self.screen, c_color, body_rect)
 
         # Отрисовка активных опционов (Страйк цена и остаток времени)
         active_opts = self.last_info.get('active_options', [])
@@ -366,24 +383,28 @@ class TradingVisualizer:
 
         curr_y += 135
 
-        # 4. Состояние Новостного Фона (Dual-Analysis News Sentiment)
+        # 4. Состояние Новостного Фона & Стратегия ИИ (Strategy & Market Regime)
+        regime_lbl = self.last_info.get('market_regime_label', '↔️ КОНСОЛИДАЦИЯ / ФЛЭТ')
+        ai_strat = self.last_info.get('ai_strategy', 'Mean Reversion (Отбой от границ)')
+
         news_info = self.last_info.get('news_info', {'active': False, 'headline': 'Фон нейтральный', 'sentiment': 0.0})
         is_news_active = news_info.get('active', False)
-        news_title = news_info.get('headline', 'Нейтральный фон')
         sent_val = news_info.get('sentiment', 0.0)
         sent_str = "БЫЧИЙ (+)" if sent_val > 0.1 else ("МЕДВЕЖИЙ (-)" if sent_val < -0.1 else "НЕЙТРАЛЬНЫЙ")
         sent_color = self.GREEN_BULL if sent_val > 0.1 else (self.RED_BEAR if sent_val < -0.1 else self.MUTED_TEXT)
 
-        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 95), border_radius=6)
-        lbl_news = self.font_small.render("ДВОЙНОЙ АНАЛИЗ (НОВОСТНОЙ ФОН):", True, self.YELLOW_RSI if is_news_active else self.MUTED_TEXT)
-        t_news = self.font_small.render(news_title[:35], True, self.TEXT_COLOR)
-        t_sent = self.font_bold.render(f"Сентимент: {sent_str}", True, sent_color)
+        pygame.draw.rect(self.screen, (24, 32, 47), (x + 15, curr_y, w - 30, 115), border_radius=6)
+        lbl_st_title = self.font_small.render("ЛОГИКА И СТРАТЕГИЯ ИИ:", True, self.YELLOW_RSI)
+        t_reg = self.font_bold.render(f"Фаза рынка: {regime_lbl}", True, self.TEXT_COLOR)
+        t_str = self.font_small.render(f"Логика: {ai_strat}", True, self.BLUE_ACCENT)
+        t_sent = self.font_small.render(f"Новостной сентимент: {sent_str}", True, sent_color)
 
-        self.screen.blit(lbl_news, (x + 25, curr_y + 8))
-        self.screen.blit(t_news, (x + 25, curr_y + 28))
-        self.screen.blit(t_sent, (x + 25, curr_y + 50))
+        self.screen.blit(lbl_st_title, (x + 25, curr_y + 8))
+        self.screen.blit(t_reg, (x + 25, curr_y + 28))
+        self.screen.blit(t_str, (x + 25, curr_y + 50))
+        self.screen.blit(t_sent, (x + 25, curr_y + 72))
 
-        curr_y += 110
+        curr_y += 130
 
         # 5. Карточка Состояния Мозга ИИ
         total_n = sum(len(c.neurons) for c in self.brain.router.clusters)
