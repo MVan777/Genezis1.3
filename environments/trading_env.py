@@ -17,17 +17,28 @@ class TradingEnv:
         self.fee_pct = fee_pct  # 0.05% комиссия за сделку (стандарт Binance/Bybit)
 
         self.loader = HistoricalDataLoader()
+        self.active_symbol = "BTC/USDT"
         if df_prices is not None and len(df_prices) > 50:
             self.prices = np.array(df_prices, dtype=np.float32)
             self.dates = [datetime.datetime.now() for _ in range(len(self.prices))]
             self.ohlcv = [{'open': float(p), 'high': float(p*1.005), 'low': float(p*0.995), 'close': float(p), 'volume': 1000.0} for p in self.prices]
         else:
-            # Загружаем реалистичные многолетние свечи BTC/USDT с OHLCV данными
-            self.dates, self.prices, self.ohlcv = self.loader.load_btc_multi_year_data(total_candles=1000)
+            # Загружаем реалистичные многолетние свечи по выбранному тикеру
+            self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=self.active_symbol, total_candles=1000)
 
         # Подключаем макроэкономический новостной календарь с датами и временем
         self.news_calendar = NewsCalendar(total_steps=len(self.prices))
         self.reset()
+
+    def change_symbol(self, symbol_name):
+        """Смена активной торговой пары (BTC/USDT, ETH/USDT, SOL/USDT, EUR/USD)"""
+        if symbol_name in ("BTC/USDT", "ETH/USDT", "SOL/USDT", "EUR/USD"):
+            self.active_symbol = symbol_name
+            self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=symbol_name, total_candles=1000)
+            self.news_calendar = NewsCalendar(total_steps=len(self.prices))
+            self.reset()
+            return True
+        return False
 
     def reset(self):
         """Сброс состояния торговли на начало графика"""
@@ -225,6 +236,7 @@ class TradingEnv:
             'market_regime': regime,
             'market_regime_label': regime_label,
             'ai_strategy': strategy,
+            'active_symbol': self.active_symbol,
             'event': trade_event
         }
 

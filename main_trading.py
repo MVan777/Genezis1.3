@@ -113,6 +113,22 @@ class TradingVisualizer:
                     self.env.set_expiry_steps(30)
                 elif event.key == pygame.K_4:
                     self.env.set_expiry_steps(60)
+                elif event.key == pygame.K_b:
+                    self.env.change_symbol("BTC/USDT")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
+                elif event.key == pygame.K_e:
+                    self.env.change_symbol("ETH/USDT")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
+                elif event.key == pygame.K_s:
+                    self.env.change_symbol("SOL/USDT")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
+                elif event.key == pygame.K_x:
+                    self.env.change_symbol("EUR/USD")
+                    self.signals_history = []
+                    self.obs = self.env._get_observation()
 
     def _update_step(self):
         """Выполнение одного шага торговли"""
@@ -156,14 +172,15 @@ class TradingVisualizer:
         pygame.draw.rect(self.screen, self.PANEL_BG, header_rect)
         pygame.draw.line(self.screen, self.PANEL_BORDER, (0, 45), (self.width, 45), 2)
 
-        title = self.font_title.render("📈 GENEZIS 2.0 TRADING AI DASHBOARD", True, self.BLUE_ACCENT)
+        sym = self.last_info.get('active_symbol', 'BTC/USDT')
+        title = self.font_title.render(f"📈 GENEZIS 2.0 TRADING AI [{sym}]", True, self.BLUE_ACCENT)
         self.screen.blit(title, (20, 10))
 
         status_str = "⏸️ ПАУЗА" if self.paused else f"⚡ СКОРОСТЬ: {self.speed} FPS"
         status = self.font_bold.render(status_str, True, self.YELLOW_RSI if self.paused else self.GREEN_BULL)
-        self.screen.blit(status, (440, 12))
+        self.screen.blit(status, (430, 12))
 
-        controls = self.font_small.render("[ПРОБЕЛ: Пауза | 1-4: Таймфрейм 5m-1h | R: Сброс]", True, self.MUTED_TEXT)
+        controls = self.font_small.render("[B,E,S,X: Пары BTC/ETH/SOL/EUR | 1-4: Экспирация]", True, self.MUTED_TEXT)
         self.screen.blit(controls, (self.width - 340, 15))
 
     def _draw_price_chart(self, x, y, w, h):
@@ -260,12 +277,13 @@ class TradingVisualizer:
                     pygame.draw.polygon(self.screen, self.RED_BEAR, [(sx, sy + 12.0), (sx - 6.0, sy), (sx + 6.0, sy)])
 
         # Текущая цена и дата
+        curr_sym = self.last_info.get('active_symbol', 'BTC/USDT')
         curr_price = float(self.env.prices[curr_step])
         curr_date = self.last_info.get('current_date', '')
-        curr_txt = self.font_bold.render(f"BTC: ${curr_price:.2f}", True, self.TEXT_COLOR)
+        curr_txt = self.font_bold.render(f"{curr_sym}: ${curr_price:.2f}", True, self.TEXT_COLOR)
         date_txt = self.font_small.render(curr_date, True, self.MUTED_TEXT)
-        self.screen.blit(curr_txt, (x + w - 150, y + 8))
-        self.screen.blit(date_txt, (x + w - 150, y + 25))
+        self.screen.blit(curr_txt, (x + w - 170, y + 8))
+        self.screen.blit(date_txt, (x + w - 170, y + 25))
 
     def _draw_rsi_chart(self, x, y, w, h):
         """Отрисовка индикатора RSI (Осциллятор)"""

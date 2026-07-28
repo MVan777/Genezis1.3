@@ -6,61 +6,75 @@
 import numpy as np
 import datetime
 import random
+import os
+import csv
 
 class HistoricalDataLoader:
-    """Загрузчик многолетних исторических свечей BTC/USDT и акций"""
+    """Загрузчик многолетних исторических свечей и CSV архивов котировок (BTC/USDT, ETH/USDT, SOL/USDT, EUR/USD)"""
 
     def __init__(self):
-        pass
+        self.data_dir = os.path.join(os.path.dirname(__file__), "data")
+
+    def load_symbol_csv(self, symbol="BTC/USDT", total_candles=1000):
+        """
+        Загрузка свечей по торговой паре из CSV файлов папки environments/data/
+        """
+        symbol_map = {
+            "BTC/USDT": "btc_usdt.csv",
+            "ETH/USDT": "eth_usdt.csv",
+            "SOL/USDT": "sol_usdt.csv",
+            "EUR/USD": "eur_usd.csv"
+        }
+        filename = symbol_map.get(symbol, "btc_usdt.csv")
+        csv_path = os.path.join(self.data_dir, filename)
+
+        dates, prices, ohlcv = [], [], []
+
+        if os.path.exists(csv_path):
+            with open(csv_path, mode='r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    try:
+                        dt = datetime.datetime.strptime(row['timestamp'], "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        dt = datetime.datetime.now()
+                    dates.append(dt)
+                    o_p, h_p, l_p, cl_p = float(row['open']), float(row['high']), float(row['low']), float(row['close'])
+                    vol = float(row['volume'])
+
+                    candle = {'open': o_p, 'high': h_p, 'low': l_p, 'close': cl_p, 'volume': vol}
+                    ohlcv.append(candle)
+                    prices.append(cl_p)
+
+        # Если данных меньше total_candles — дополняем реалистичным случайным блужданием
+        if len(prices) < total_candles:
+            start_idx = len(prices)
+            last_p = prices[-1] if prices else (30000.0 if "BTC" in symbol else (2000.0 if "ETH" in symbol else (100.0 if "SOL" in symbol else 1.20)))
+            last_dt = dates[-1] if dates else datetime.datetime(2021, 1, 1, 0, 0)
+            base_seed = hash(symbol) % 10000
+            np.random.seed(base_seed)
+
+            for t in range(start_idx, total_candles):
+                last_dt += datetime.timedelta(hours=1)
+                dates.append(last_dt)
+
+                ret = np.random.normal(0.0003, 0.012)
+                open_p = last_p
+                close_p = open_p * (1.0 + ret)
+                vola = max(abs(ret), 0.004)
+                high_p = max(open_p, close_p) * (1.0 + random.uniform(0.001, vola * 1.5))
+                low_p = min(open_p, close_p) * (1.0 - random.uniform(0.001, vola * 1.5))
+                vol = float(np.random.uniform(500, 5000))
+
+                candle = {'open': open_p, 'high': high_p, 'low': low_p, 'close': close_p, 'volume': vol}
+                ohlcv.append(candle)
+                prices.append(float(close_p))
+                last_p = close_p
+
+        return dates[:total_candles], np.array(prices[:total_candles], dtype=np.float32), ohlcv[:total_candles]
 
     def load_btc_multi_year_data(self, total_candles=1000):
-        """
-        Генерация качественной многолетней истории BTC/USDT от $5,000 до $70,000+ с Японскими Свечами OHLCV
-        """
-        np.random.seed(100)
-        start_date = datetime.datetime(2021, 1, 1, 0, 0)
-        dates = [start_date + datetime.timedelta(hours=i) for i in range(total_candles)]
-
-        price = 28000.0
-        prices = []
-        ohlcv = []
-        volumes = []
-
-        # Симуляция реальных фаз рынка BTC
-        for t in range(total_candles):
-            if t < 250:
-                trend = 0.002  # Бычий ралли до $60k
-            elif t < 450:
-                trend = -0.0015 # Коррекция до $30k
-            elif t < 700:
-                trend = 0.0002  # Флэт / Консолидация
-            else:
-                trend = 0.0018  # Новый бычий тренд до $70k
-
-            cycle = 0.003 * np.sin(t / 20.0)
-            noise = np.random.normal(0, 0.015)
-            ret = trend + cycle + noise
-
-            open_p = price
-            close_p = price * (1.0 + ret)
-            vola = max(abs(ret), 0.005)
-            high_p = max(open_p, close_p) * (1.0 + random.uniform(0.001, vola * 1.5))
-            low_p = min(open_p, close_p) * (1.0 - random.uniform(0.001, vola * 1.5))
-            vol = float(np.random.uniform(500, 5000))
-
-            candle = {
-                'open': float(open_p),
-                'high': float(high_p),
-                'low': float(low_p),
-                'close': float(close_p),
-                'volume': vol
-            }
-            ohlcv.append(candle)
-            prices.append(float(close_p))
-            volumes.append(vol)
-            price = close_p
-
-        return dates, np.array(prices, dtype=np.float32), ohlcv
+        return self.load_symbol_csv(symbol="BTC/USDT", total_candles=total_candles)
 
 
 class NewsCalendar:
