@@ -81,10 +81,15 @@ def run_headless_training(max_matches=100):
                 elif ev == 'ai_miss':
                     misses += 1
 
+            # Сбрасываем локальную историю эпизода
+            brain.reset_episode()
+
             # Авто-компрессия и очистка каждые 3 матча
             pruned = 0
             if match_count % 3 == 0:
                 pruned, merged = auto_compressor.compress_brain(brain)
+                if hasattr(brain, '_rebuild_neuron_cache'):
+                    brain._rebuild_neuron_cache()
 
             # Статистика нейронов и связей
             total_n = sum(len(c.neurons) for c in brain.router.clusters)

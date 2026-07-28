@@ -50,15 +50,32 @@ class UniversalAssociativeBrain:
         self.history = []
         self.stats = {'steps': 0, 'lessons': 0, 'curiosity_rewards': 0.0}
 
+    def _rebuild_neuron_cache(self):
+        """Быстрая пересборка индекса ID -> Нейрон для O(1) поиска"""
+        self._neuron_cache = {}
+        for cluster in self.router.clusters:
+            for n in cluster.neurons:
+                self._neuron_cache[n.id] = n
+
     def _find_neuron_by_id(self, neuron_id):
-        """Быстрый поиск нейрона по ID для предвосхищения"""
+        """Быстрый O(1) поиск нейрона по ID для предвосхищения"""
+        if not hasattr(self, '_neuron_cache') or self._neuron_cache is None:
+            self._rebuild_neuron_cache()
+            
+        neuron = self._neuron_cache.get(neuron_id)
+        if neuron is not None:
+            return neuron
+            
+        # Резервный поиск, если нейрон был добавлен в кластер в обход кэша
         if self.active_cluster:
             for n in self.active_cluster.neurons:
                 if n.id == neuron_id:
+                    self._neuron_cache[n.id] = n
                     return n
         for cluster in self.router.clusters:
             for n in cluster.neurons:
                 if n.id == neuron_id:
+                    self._neuron_cache[n.id] = n
                     return n
         return None
 
@@ -187,6 +204,8 @@ class UniversalAssociativeBrain:
         # Создаем новый краткосрочный нейрон
         new_neuron = ShortTermNeuron(self.last_obs, self.last_action, flag)
         self.active_cluster.add_neuron(new_neuron)
+        if hasattr(self, '_neuron_cache') and self._neuron_cache is not None:
+            self._neuron_cache[new_neuron.id] = new_neuron
 
         # Последовательная временная связь N_{t-1} -> N_t
         if self.last_neuron is not None and hasattr(self.last_neuron, 'add_next_association'):
