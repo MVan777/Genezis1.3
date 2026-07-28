@@ -40,13 +40,13 @@ class TradingEnv:
         if mode_name in ("sim", "live"):
             self.mode = mode_name
             if self.mode == "live":
-                ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=100)
+                ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=60)
                 if lprices and len(lprices) > 30:
                     self.dates, self.prices, self.ohlcv = ldates, np.array(lprices, dtype=np.float32), lohlcv
             else:
-                # В режиме SIM всегда подгружаем сплошную историю от 01.01.2021
                 self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=self.active_symbol)
 
+            self.current_step = max(30, len(self.prices) - 1) if self.mode == "live" else 30
             self.reset(preserve_step=(self.mode == "sim"))
             return True
         return False
@@ -57,7 +57,7 @@ class TradingEnv:
             ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=60)
             if lprices and len(lprices) > 30:
                 self.dates, self.prices, self.ohlcv = ldates, np.array(lprices, dtype=np.float32), lohlcv
-                self.current_step = len(self.prices) - 1
+                self.current_step = max(30, len(self.prices) - 1)
 
     def change_symbol(self, symbol_name):
         """Смена активной торговой пары (Crypto & Forex)"""
@@ -65,7 +65,7 @@ class TradingEnv:
         if symbol_name in valid_symbols:
             self.active_symbol = symbol_name
             if self.mode == "live":
-                ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=100)
+                ldates, lprices, lohlcv = self.live_stream.fetch_live_klines(symbol=self.active_symbol, interval="1m", limit=60)
                 if lprices and len(lprices) > 30:
                     self.dates, self.prices, self.ohlcv = ldates, np.array(lprices, dtype=np.float32), lohlcv
                 else:
@@ -74,14 +74,18 @@ class TradingEnv:
                 self.dates, self.prices, self.ohlcv = self.loader.load_symbol_csv(symbol=symbol_name, total_candles=1000)
 
             self.news_calendar = NewsCalendar(total_steps=len(self.prices))
+            self.current_step = max(30, len(self.prices) - 1) if self.mode == "live" else 30
             self.reset(preserve_step=True)
             return True
         return False
 
     def reset(self, preserve_step=False):
         """Сброс состояния торговли на начало графика (или сохранение текущего шага при preserve_step=True)"""
-        if not preserve_step:
+        if not preserve_step and self.mode != "live":
             self.current_step = 30  # Начинаем после накопительного окна индикаторов
+        elif self.mode == "live":
+            self.current_step = max(30, len(self.prices) - 1)
+
         self.balance = self.initial_balance
         self.position = 0  # 0: FLAT, 1: LONG, -1: SHORT
         self.entry_price = 0.0
@@ -104,8 +108,12 @@ class TradingEnv:
         return False
 
     def _calculate_rsi(self, window=14):
-        """Расчёт индекса относительной силы (RSI)"""
-        sub_prices = self.prices[self.current_step - window:self.current_step + 1]
+        """Расчёт индекса относительной силы (RSI) с защитой границ"""
+        start_i = max(0, self.current_step - window)
+        sub_prices = self.prices[start_i:self.current_step + 1]
+        if len(sub_prices) < 2:
+            return 0.5
+
         diffs = np.diff(sub_prices)
         gains = np.where(diffs > 0, diffs, 0)
         losses = np.where(diffs < 0, -diffs, 0)
@@ -117,7 +125,7 @@ class TradingEnv:
             return 1.0
         rs = avg_gain / avg_loss
         rsi = 100.0 - (100.0 / (1.0 + rs))
-        return rsi / 100.0  # Нормализовано от 0.0 до 1.0
+        return rsi / 100.0
 
     def _get_observation(self):
         """
@@ -126,14 +134,17 @@ class TradingEnv:
         """
         curr_price = self.prices[self.current_step]
 
-        # Доходность за 1, 5, 15 баров
-        ret_1 = (curr_price - self.prices[self.current_step - 1]) / self.prices[self.current_step - 1]
-        ret_5 = (curr_price - self.prices[self.current_step - 5]) / self.prices[self.current_step - 5]
-        ret_15 = (curr_price - self.prices[self.current_step - 15]) / self.prices[self.current_step - 15]
+        idx_1 = max(0, self.current_step - 1)
+        idx_5 = max(0, self.current_step - 5)
+        idx_15 = max(0, self.current_step - 15)
+
+        ret_1 = (curr_price - self.prices[idx_1]) / self.prices[idx_1] if self.prices[idx_1] > 0 else 0.0
+        ret_5 = (curr_price - self.prices[idx_5]) / self.prices[idx_5] if self.prices[idx_5] > 0 else 0.0
+        ret_15 = (curr_price - self.prices[idx_15]) / self.prices[idx_15] if self.prices[idx_15] > 0 else 0.0
 
         # RSI и Волатильность (стандартное отклонение за 10 баров)
         rsi_norm = self._calculate_rsi(window=14)
-        sub = self.prices[self.current_step - 10:self.current_step + 1]
+        sub = self.prices[max(0, self.current_step - 10):self.current_step + 1]
         vola = np.std(np.diff(sub) / sub[:-1]) if len(sub) > 1 else 0.01
         vola_norm = min(1.0, vola * 20.0)
 

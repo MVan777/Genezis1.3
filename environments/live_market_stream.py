@@ -16,7 +16,12 @@ class BinanceLiveStream:
             "BTC/USDT": "BTCUSDT",
             "ETH/USDT": "ETHUSDT",
             "SOL/USDT": "SOLUSDT",
-            "EUR/USD": "EURUSDT"
+            "EUR/USD": "EURUSDT",
+            "GBP/USD": "GBPUSDT",
+            "USD/JPY": "USDJPY",
+            "AUD/USD": "AUDUSDT",
+            "USD/CHF": "USDCHF",
+            "EUR/GBP": "EURGBP"
         }
         self.last_fetch_time = 0
         self.cached_klines = []
