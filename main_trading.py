@@ -302,16 +302,20 @@ class TradingVisualizer:
                 pygame.draw.rect(self.screen, res_bg, badge_rect, border_radius=4)
                 self.screen.blit(badge_lbl, (ex_x - 40, ex_y - 18))
 
-        # Отрисовка активных опционов (Страйк цена и остаток времени)
+        # Отрисовка активных опционов (Страйк цена и остаток реального времени)
         active_opts = self.last_info.get('active_options', [])
         for opt in active_opts:
             strike_p = opt['strike_price']
-            rem_steps = opt['expiry_step'] - curr_step
+            rem_sec = opt.get('remaining_wall_seconds', max(0, (opt['expiry_step'] - curr_step) * 60))
+            mins = rem_sec // 60
+            secs = rem_sec % 60
+            time_fmt = f"{mins:02d}:{secs:02d}"
+
             strike_y = float(y + h - 20 - ((strike_p - min_p) / p_range) * (h - 60))
             line_color = self.GREEN_BULL if opt['direction'] == 1 else self.RED_BEAR
             
             pygame.draw.line(self.screen, line_color, (x + 15, strike_y), (x + w - 15, strike_y), 1)
-            lbl = self.font_small.render(f"Strike: ${strike_p:.2f} ({'UP' if opt['direction'] == 1 else 'DOWN'}) | Экспирация через: {rem_steps}м", True, line_color)
+            lbl = self.font_small.render(f"Strike: ${strike_p:.2f} ({'UP' if opt['direction'] == 1 else 'DOWN'}) | Настенный секундомер Binance: {time_fmt}", True, line_color)
             self.screen.blit(lbl, (x + 25, strike_y - 14))
 
         # Отрисовка новостных маркеров на шкале времени (NEWS EVENTS)

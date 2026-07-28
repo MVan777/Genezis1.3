@@ -172,10 +172,11 @@ class TradingEnv:
             opt_direction = 1 if action == 1 else -1
             option_contract = {
                 'id': len(self.completed_options) + len(self.active_options) + 1,
-                'entry_step': self.current_step - 1,
-                'strike_price': curr_price,
                 'direction': opt_direction,
-                'expiry_step': (self.current_step - 1) + self.selected_expiry_steps,
+                'entry_step': self.current_step,
+                'expiry_step': self.current_step + self.selected_expiry_steps,
+                'expiry_timestamp': time.time() + (self.selected_expiry_steps * 60) if self.mode == "live" else 0,
+                'strike_price': curr_price,
                 'amount': 10.0,
                 'expiry_setting': self.selected_expiry_steps
             }
@@ -184,10 +185,20 @@ class TradingEnv:
             self.entry_price = curr_price
             trade_event = "open_option"
 
-        # ===== 2. ПРОВЕРКА ИСТЕНИЯ СРОКА ЭКСПИРАЦИИ (EXPIRATION CHECK) =====
+        # ===== 2. ПРОВЕРКА ИСТЕЧЕНИЯ СРОКА ЭКСПИРАЦИИ (EXPIRATION CHECK) =====
         remaining_active = []
+        now_ts = time.time()
+
         for opt in self.active_options:
-            if self.current_step >= opt['expiry_step']:
+            is_expired = False
+            if self.mode == "live" and opt.get('expiry_timestamp', 0) > 0:
+                is_expired = (now_ts >= opt['expiry_timestamp'])
+                opt['remaining_wall_seconds'] = max(0, int(opt['expiry_timestamp'] - now_ts))
+            else:
+                is_expired = (self.current_step >= opt['expiry_step'])
+                opt['remaining_wall_seconds'] = max(0, (opt['expiry_step'] - self.current_step) * 60)
+
+            if is_expired:
                 strike = opt['strike_price']
                 exit_price = curr_price
                 direction = opt['direction']
