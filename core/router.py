@@ -62,6 +62,10 @@ class Router:
             if len(state) in (16, 32, 64):
                 return "dialogue"
 
+            # 8-мерное состояние Биржи / Трейдинга
+            if len(state) == 8:
+                return "trading"
+
             # 7-мерное состояние игры Теннис
             if len(state) == 7:
                 return "tennis"
