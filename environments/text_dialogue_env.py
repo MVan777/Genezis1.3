@@ -1,0 +1,165 @@
+"""
+Среда Текстового Диалогового ИИ (Text Dialogue Environment)
+Конвертирует фразы на русском языке в числовые векторы R^16
+и обучает Ассоциативный Мозг отвечать на вопросы.
+"""
+
+import math
+import random
+import hashlib
+import numpy as np
+import json
+import os
+
+DEFAULT_DIALOGUES = [
+    # Приветствия
+    {"prompt": "Привет!", "answer": "Привет! Рад тебя видеть!"},
+    {"prompt": "Здравствуй", "answer": "Здравствуйте! Чем могу помочь?"},
+    {"prompt": "Доброе утро", "answer": "Доброе утро! Хорошего дня!"},
+    {"prompt": "Добрый вечер", "answer": "Добрый вечер! Как прошёл день?"},
+    {"prompt": "Эй, салют!", "answer": "Привет-привет! Что нового?"},
+
+    # Вопросы о себе и состоянии
+    {"prompt": "Как дела?", "answer": "Отлично! Мой ассоциативный граф работает на полную мощность."},
+    {"prompt": "Как ты себя чувствуешь?", "answer": "Замечательно! Нейроны активны и готовы к обучению."},
+    {"prompt": "Кто ты?", "answer": "Я — Ассоциативный ИИ Genezis 2.0."},
+    {"prompt": "Как тебя зовут?", "answer": "Меня зовут Genezis, разум на основе графа связей."},
+    {"prompt": "Что ты умеешь?", "answer": "Я умею играть в игры, обучаться диалогам и находить связи в данных."},
+
+    # Вопросы о магазине и торговле
+    {"prompt": "Где купить товар?", "answer": "Вы можете оформить заказ прямо в нашем Telegram-боте."},
+    {"prompt": "Сколько стоит доставка?", "answer": "Доставка рассчитывается автоматически при оформлении корзины."},
+    {"prompt": "Есть ли скидки?", "answer": "Да! Для постоянных клиентов у нас действуют промокоды."},
+    {"prompt": "Как оплатить заказ?", "answer": "Оплата доступна картой, через СБП или криптовалютой."},
+    {"prompt": "Где посмотреть каталог?", "answer": "Каталог товаров доступен по кнопке Меню в боте."},
+
+    # Философия и интеллект
+    {"prompt": "Ты живой?", "answer": "Я постоянно развиваюсь и создаю новые нейронные связи!"},
+    {"prompt": "Что такое ассоциация?", "answer": "Ассоциация — это связь между прошлым опытом и будущим решением."},
+    {"prompt": "Ты умеешь думать?", "answer": "Да, я провожу 5-шаговое симулирование вариантов в графе памяти."},
+    {"prompt": "Что такое любовь?", "answer": "Это сильнейшая позитивная ассоциативная связь в памяти!"},
+
+    # Прощание
+    {"prompt": "Пока!", "answer": "До свидания! Был рад пообщаться!"},
+    {"prompt": "До встречи", "answer": "До скорой встречи! Возвращайтесь скорее."},
+    {"prompt": "Увидимся", "answer": "Хорошего дня! До новых встреч."},
+    {"prompt": "Спасибо за помощь", "answer": "Всегда пожалуйста! Обращайтесь в любой момент."}
+]
+
+def encode_text_to_vector(text: str, dim: int = 16) -> np.ndarray:
+    """
+    Стабильное преобразование текстовой строки в нормализованный вектор R^dim
+    Использует хэширование n-грамм и символьные профили.
+    """
+    text_clean = text.lower().strip()
+    vector = np.zeros(dim, dtype=np.float32)
+    
+    if not text_clean:
+        return vector
+
+    # Символьный профиль + хэширование байтовых n-грамм
+    for i, char in enumerate(text_clean):
+        idx = ord(char) % dim
+        vector[idx] += 1.0 + (i * 0.05)
+
+    # N-граммы длины 2 и 3
+    for n in (2, 3):
+        for i in range(len(text_clean) - n + 1):
+            ngram = text_clean[i:i+n]
+            h = int(hashlib.md5(ngram.encode('utf-8')).hexdigest(), 16)
+            idx = h % dim
+            vector[idx] += 0.5
+
+    # Нормализация вектора по L2 норме
+    norm = np.linalg.norm(vector)
+    if norm > 1e-6:
+        vector = vector / norm
+
+    return vector
+
+class TextDialogueEnv:
+    """Среда обучения ИИ диалогам на естественном языке"""
+
+    def __init__(self, custom_dataset_path: str = None):
+        self.dialogues = list(DEFAULT_DIALOGUES)
+        if custom_dataset_path and os.path.exists(custom_dataset_path):
+            self.load_custom_dialogues(custom_dataset_path)
+
+        # Выделяем уникальные ответы для формирования пространства действий
+        self.answers = sorted(list(set(d['answer'] for d in self.dialogues)))
+        self.answer_to_idx = {ans: i for i, ans in enumerate(self.answers)}
+        self.action_count = len(self.answers)
+
+        self.current_dialogue = None
+        self.current_prompt = ""
+        self.target_answer_idx = 0
+        self.step_count = 0
+
+    def load_custom_dialogues(self, filepath: str):
+        """Загрузка внешнего словаря из JSON файла"""
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    for item in data:
+                        if 'prompt' in item and 'answer' in item:
+                            self.dialogues.append(item)
+            print(f"  ✅ Загружен внешний словарь из {filepath} (Всего пар: {len(self.dialogues)})")
+        except Exception as e:
+            print(f"  ⚠️ Ошибка чтения файла {filepath}: {e}")
+
+    def reset(self, prompt_text: str = None) -> np.ndarray:
+        """Сбросить среду и выдать новый случайный или заданный вопрос"""
+        self.step_count = 0
+        if prompt_text:
+            self.current_prompt = prompt_text
+            # Ищем совпадение в базе или выбираем ближайший ответ
+            matched = [d for d in self.dialogues if d['prompt'].lower() == prompt_text.lower()]
+            if matched:
+                self.current_dialogue = matched[0]
+            else:
+                self.current_dialogue = random.choice(self.dialogues)
+        else:
+            self.current_dialogue = random.choice(self.dialogues)
+            self.current_prompt = self.current_dialogue['prompt']
+
+        target_ans = self.current_dialogue['answer']
+        if target_ans in self.answer_to_idx:
+            self.target_answer_idx = self.answer_to_idx[target_ans]
+        else:
+            self.target_answer_idx = random.randint(0, self.action_count - 1)
+
+        return encode_text_to_vector(self.current_prompt)
+
+    def step(self, action_idx: int):
+        """Выполнение шага диалога: проверка ответа ИИ"""
+        self.step_count += 1
+        done = True  # Диалоговый раунд одношаговый на ответ
+
+        is_correct = (action_idx == self.target_answer_idx)
+        chosen_answer = self.answers[action_idx] if 0 <= action_idx < self.action_count else "???"
+        correct_answer = self.answers[self.target_answer_idx]
+
+        if is_correct:
+            reward = 1.0
+            event = 'correct'
+        else:
+            reward = -0.5
+            event = 'wrong'
+
+        info = {
+            'prompt': self.current_prompt,
+            'chosen_answer': chosen_answer,
+            'correct_answer': correct_answer,
+            'is_correct': is_correct,
+            'event': event
+        }
+
+        next_obs = encode_text_to_vector(chosen_answer)
+        return next_obs, reward, done, info
+
+    def get_answer_text(self, action_idx: int) -> str:
+        """Получить строковый текст ответа по индексу действия"""
+        if 0 <= action_idx < len(self.answers):
+            return self.answers[action_idx]
+        return "Неизвестный ответ"
